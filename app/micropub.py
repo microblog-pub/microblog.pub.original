@@ -85,9 +85,7 @@ async def post_micropub_endpoint(
     if "action" in form_data:
         if form_data["action"] in ["delete", "update"]:
             url = form_data["url"]
-            outbox_object = await get_outbox_object_by_ap_id(
-                db_session, url
-            )
+            outbox_object = await get_outbox_object_by_ap_id(db_session, url)
             if not outbox_object:
                 return JSONResponse(
                     content={
@@ -109,10 +107,12 @@ async def post_micropub_endpoint(
                     return insufficient_scope_resp
 
                 # TODO(1d): support update properly. Currently only supposed "replace":{"content":<new content>}
-                
+
                 if "replace" in form_data:
                     logger.info(f"Updating object {outbox_object.ap_id}: {form_data}")
-                    await send_update(db_session,outbox_object.ap_id,form_data["replace"]["content"])
+                    await send_update(
+                        db_session, outbox_object.ap_id, form_data["replace"]["content"]
+                    )
                     return JSONResponse(content={}, status_code=200)
                 else:
                     return JSONResponse(
