@@ -1,5 +1,5 @@
 {%- import "components/attachments.html" as attachments -%}
-{%- import "components/hidden_inputs.html" as hidden_inputs -%}
+{%- import "components/hidden_inputs.html" as hidden_inputs with context -%}
 {%- import "components/admin_buttons.html" as admin_buttons -%}
 {%- import "components/actor.html" as actor_component -%}
 
@@ -139,7 +139,7 @@
         {% set can_vote = is_admin and object.is_from_inbox and not object.is_poll_ended and not object.voted_for_answers %}
         {% if can_vote %}
             <form action="{{ request.url_for("admin_actions_vote") }}" method="POST">
-                {{ hidden_inputs.embed_csrf_token(csrf_token) }}
+                {{ hidden_inputs.embed_csrf_token() }}
                 {{ hidden_inputs.embed_redirect_url(request, object.permalink_id) }}
                 <input type="hidden" name="in_reply_to" value="{{ object.ap_id }}">
         {% endif %}
@@ -270,7 +270,7 @@
     <ul>
         {% if object.is_from_outbox %}
             <li>
-                {{ admin_edit_button(object) }}
+                {{ admin_buttons.admin_edit_button(request, object) }}
             </li>
             <li>
                 {{ admin_buttons.admin_delete_button(request, csrf_token, object) }}

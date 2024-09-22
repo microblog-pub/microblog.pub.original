@@ -1,4 +1,4 @@
-{%- import "components/hidden_inputs.html" as hidden_inputs -%}
+{%- import "components/hidden_inputs.html" as hidden_inputs with context -%}
 
 {% extends "layout.html" %}
 {% block content %}
@@ -20,7 +20,7 @@
 
 
                 <form method="POST" action="{{ url_for('indieauth_flow') }}" class="form">
-                    {{ hidden_inputs.embed_csrf_token(csrf_token) }}
+                    {{ hidden_inputs.embed_csrf_token() }}
                     {% if scopes %}
                     <h3>Scopes</h3>
                     <ul>
