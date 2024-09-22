@@ -58,7 +58,7 @@
 {{ actor_box(actor) }}
 {% if is_admin and metadata %}
 <div>
-    <nav class="flexbox actor-metadata" hx-boost="true" hx-indicator="body">
+    <nav class="flexbox actor-metadata">
         <ul>
             {% if metadata.has_blocked_local_actor %}
                 <li>blocked you</li>

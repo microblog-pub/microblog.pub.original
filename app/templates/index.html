@@ -41,7 +41,7 @@
     </div>
 
     {% if has_previous_page or has_next_page %}
-        <div class="box" hx-boost="true" hx-indicator="body">
+        <div class="box">
             {% if has_previous_page %}
             <a href="{{ url_for("index") }}?page={{ current_page - 1 }}">Previous</a>
             {% endif %}

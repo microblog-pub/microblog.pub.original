@@ -22,7 +22,7 @@
 <a href="{{ url_for }}" {% if BASE_URL + request.url.path == url_for %}class="active"{% endif %}>{{ text }}</a>
 {% endmacro %}
 <div class="admin-menu">
-<nav class="flexbox" hx-boost="true" hx-indicator="body">
+<nav class="flexbox">
     <ul>
         <li>{{ admin_link("index", "Public") }}</li>
         <li>{{ admin_link("admin_new", "New") }}</li>
@@ -56,6 +56,5 @@
 <script src="{{ BASE_URL }}/static/common-admin.js?v={{ JS_HASH }}"></script>
 {% endif %}
 <script src="{{ BASE_URL }}/static/common.js?v={{ JS_HASH }}"></script>
-<script src="{{ BASE_URL }}/static/htmx-1_9_12.min.js?v={{ JS_HASH }}"></script>
 </body>
 </html>
