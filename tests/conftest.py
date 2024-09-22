@@ -1,5 +1,8 @@
-from typing import Generator
+import os
 
+os.environ["MICROBLOGPUB_CONFIG_FILE"] = "tests.toml"
+
+from typing import Generator
 import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
@@ -10,7 +13,6 @@ from app.database import async_session
 from app.database import engine
 from app.main import app
 from tests.factories import _Session
-
 
 @pytest_asyncio.fixture
 async def async_db_session():
