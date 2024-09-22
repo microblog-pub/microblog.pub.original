@@ -786,7 +786,7 @@ async def send_vote(
         raise ValueError("Object has no context")
     context = in_reply_to_object.ap_context
 
-    # TODO: ensure the name are valid?
+    # ensure the name are valid
 
     # Save the answers
     in_reply_to_object.voted_for_answers = names
@@ -819,7 +819,9 @@ async def send_vote(
         for rcp in recipients:
             await new_outgoing_activity(db_session, rcp, outbox_object.id)
 
+    # commit db session
     await db_session.commit()
+    
     return vote_id
 
 
