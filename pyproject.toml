@@ -42,7 +42,6 @@ invoke = "^1.7.1"
 boussole = "^2.0.0"
 uvicorn = {extras = ["standard"], version = "^0.22.0"}
 Brotli = "^1.0.9"
-greenlet = "^2.0.2"
 mistletoe = "^1.2.1"
 Pebble = "^5.0.2"
 

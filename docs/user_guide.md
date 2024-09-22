@@ -217,6 +217,16 @@ You can switch to one of the [styles supported by Pygments](https://pygments.org
 code_highlighting_theme = "solarized-dark"
 ```
 
+#### Custom routes
+
+Custom routes can be added using in `data/custom_routes.py`:
+
+```python
+from app.customization import register_html_page
+
+register_html_page("/testcustom",title="test html page", html_file="test.txt",show_in_navbar=True)
+```
+
 ### Blocking servers
 
 In addition to blocking "single actors" via the admin interface, you can also prevent any communication with entire servers.
