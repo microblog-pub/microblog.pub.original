@@ -111,7 +111,10 @@ def get_custom_router() -> APIRouter | None:
     for path, handler in _CUSTOM_ROUTES.items():
         if isinstance(handler, HTMLPage):
             router.add_api_route(
-                path, _custom_page_handler(path, handler), methods=["GET"], response_model=None
+                path,
+                _custom_page_handler(path, handler),
+                methods=["GET"],
+                response_model=None,
             )
         else:
             router.add_api_route(path, handler.handler)
