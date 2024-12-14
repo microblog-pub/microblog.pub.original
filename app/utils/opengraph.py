@@ -12,14 +12,12 @@ from loguru import logger
 from pebble import concurrent  # type: ignore
 from pydantic import BaseModel
 
-from app import activitypub as ap
-from app import ap_object
+from activitypub import activitypub as ap, ap_object
 from app import config
-from app.actor import LOCAL_ACTOR
-from app.actor import fetch_actor
+from activitypub.actor import LOCAL_ACTOR
+from activitypub.actor import fetch_actor
 from app.database import AsyncSession
-from app.models import InboxObject
-from app.models import OutboxObject
+from activitypub.models import InboxObject, OutboxObject
 from app.utils.url import is_url_valid
 from app.utils.url import make_abs
 

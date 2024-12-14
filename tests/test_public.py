@@ -4,8 +4,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app import activitypub as ap
-from app.actor import LOCAL_ACTOR
+from activitypub import activitypub as ap
+from activitypub.actor import LOCAL_ACTOR
 
 _ACCEPTED_AP_HEADERS = [
     "application/activity+json",

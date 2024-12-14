@@ -11,7 +11,8 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from app import activitypub as ap
+import activitypub.models
+from activitypub import activitypub as ap
 from app import media
 from app.config import BASE_URL
 from app.config import USER_AGENT
@@ -22,7 +23,7 @@ from app.utils.datetime import as_utc
 from app.utils.datetime import now
 
 if typing.TYPE_CHECKING:
-    from app.models import Actor as ActorModel
+    from activitypub.models import Actor as ActorModel
 
 
 def _handle(raw_actor: ap.RawObject) -> str:
@@ -216,7 +217,7 @@ async def save_actor(db_session: AsyncSession, ap_actor: ap.RawObject) -> "Actor
     if ap_type := ap_actor.get("type") not in ap.ACTOR_TYPES:
         raise ValueError(f"Invalid type {ap_type} for actor {ap_actor}")
 
-    actor = models.Actor(
+    actor = activitypub.models.Actor(
         ap_id=ap.get_id(ap_actor["id"]),
         ap_actor=ap_actor,
         ap_type=ap.as_list(ap_actor["type"])[0],
@@ -239,8 +240,8 @@ async def fetch_actor(
 
     existing_actor = (
         await db_session.scalars(
-            select(models.Actor).where(
-                models.Actor.ap_id == actor_id,
+            select(activitypub.models.Actor).where(
+                activitypub.models.Actor.ap_id == actor_id,
             )
         )
     ).one_or_none()
@@ -273,8 +274,8 @@ async def fetch_actor(
         # (like Birdsite LIVE) , which mean we may already have it in DB
         existing_actor_by_url = (
             await db_session.scalars(
-                select(models.Actor).where(
-                    models.Actor.ap_id == ap.get_id(ap_actor),
+                select(activitypub.models.Actor).where(
+                    activitypub.models.Actor.ap_id == ap.get_id(ap_actor),
                 )
             )
         ).one_or_none()
@@ -298,8 +299,8 @@ async def list_actors(db_session: AsyncSession, limit: int = 100) -> list["Actor
     return (
         (
             await db_session.scalars(
-                select(models.Actor)
-                .where(models.Actor.is_deleted.is_(False))
+                select(activitypub.models.Actor)
+                .where(activitypub.models.Actor.is_deleted.is_(False))
                 .limit(limit)
             )
         )
@@ -350,9 +351,9 @@ async def get_actors_metadata(
         follower.ap_actor_id: follower.inbox_object.ap_id
         for follower in (
             await db_session.scalars(
-                select(models.Follower)
-                .where(models.Follower.ap_actor_id.in_(ap_actor_ids))
-                .options(joinedload(models.Follower.inbox_object))
+                select(activitypub.models.Follower)
+                .where(activitypub.models.Follower.ap_actor_id.in_(ap_actor_ids))
+                .options(joinedload(activitypub.models.Follower.inbox_object))
             )
         )
         .unique()
@@ -361,37 +362,37 @@ async def get_actors_metadata(
     following = {
         following.ap_actor_id
         for following in await db_session.execute(
-            select(models.Following.ap_actor_id).where(
-                models.Following.ap_actor_id.in_(ap_actor_ids)
+            select(activitypub.models.Following.ap_actor_id).where(
+                activitypub.models.Following.ap_actor_id.in_(ap_actor_ids)
             )
         )
     }
     sent_follow_requests = {
         follow_req.ap_object["object"]: follow_req.ap_id
         for follow_req in await db_session.execute(
-            select(models.OutboxObject.ap_object, models.OutboxObject.ap_id).where(
-                models.OutboxObject.ap_type == "Follow",
-                models.OutboxObject.undone_by_outbox_object_id.is_(None),
-                models.OutboxObject.activity_object_ap_id.in_(ap_actor_ids),
+            select(activitypub.models.OutboxObject.ap_object, activitypub.models.OutboxObject.ap_id).where(
+                activitypub.models.OutboxObject.ap_type == "Follow",
+                activitypub.models.OutboxObject.undone_by_outbox_object_id.is_(None),
+                activitypub.models.OutboxObject.activity_object_ap_id.in_(ap_actor_ids),
             )
         )
     }
     rejected_follow_requests = {
         reject.activity_object_ap_id
         for reject in await db_session.execute(
-            select(models.InboxObject.activity_object_ap_id).where(
-                models.InboxObject.ap_type == "Reject",
-                models.InboxObject.ap_actor_id.in_(ap_actor_ids),
+            select(activitypub.models.InboxObject.activity_object_ap_id).where(
+                activitypub.models.InboxObject.ap_type == "Reject",
+                activitypub.models.InboxObject.ap_actor_id.in_(ap_actor_ids),
             )
         )
     }
     blocks = {
         block.ap_actor_id
         for block in await db_session.execute(
-            select(models.InboxObject.ap_actor_id).where(
-                models.InboxObject.ap_type == "Block",
-                models.InboxObject.undone_by_inbox_object_id.is_(None),
-                models.InboxObject.ap_actor_id.in_(ap_actor_ids),
+            select(activitypub.models.InboxObject.ap_actor_id).where(
+                activitypub.models.InboxObject.ap_type == "Block",
+                activitypub.models.InboxObject.undone_by_inbox_object_id.is_(None),
+                activitypub.models.InboxObject.ap_actor_id.in_(ap_actor_ids),
             )
         )
     }

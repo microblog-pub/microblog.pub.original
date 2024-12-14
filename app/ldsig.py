@@ -9,7 +9,7 @@ from Crypto.Signature import PKCS1_v1_5
 from loguru import logger
 from pyld import jsonld  # type: ignore
 
-from app import activitypub as ap
+from activitypub import activitypub as ap
 from app.database import AsyncSession
 from app.httpsig import _get_public_key
 

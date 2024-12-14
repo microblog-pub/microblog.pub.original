@@ -8,11 +8,12 @@ from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import activitypub as ap
+import activitypub.models
+from activitypub import activitypub as ap
 from app import models
-from app.actor import LOCAL_ACTOR
-from app.ap_object import RemoteObject
-from tests import factories
+from activitypub.actor import LOCAL_ACTOR
+from activitypub.ap_object import RemoteObject
+from activitypub.tests import factories
 from tests.utils import mock_httpsig_checker
 from tests.utils import run_process_next_incoming_activity
 from tests.utils import setup_inbox_delete
@@ -67,26 +68,26 @@ def test_inbox_incoming_follow_request(
     run_process_next_incoming_activity()
 
     # And the actor was saved in DB
-    saved_actor = db.execute(select(models.Actor)).scalar_one()
+    saved_actor = db.execute(select(activitypub.models.Actor)).scalar_one()
     assert saved_actor.ap_id == ra.ap_id
 
     # And the Follow activity was saved in the inbox
-    inbox_object = db.execute(select(models.InboxObject)).scalar_one()
+    inbox_object = db.execute(select(activitypub.models.InboxObject)).scalar_one()
     assert inbox_object.ap_object == follow_activity.ap_object
 
     # And a follower was internally created
-    follower = db.execute(select(models.Follower)).scalar_one()
+    follower = db.execute(select(activitypub.models.Follower)).scalar_one()
     assert follower.ap_actor_id == ra.ap_id
     assert follower.actor_id == saved_actor.id
     assert follower.inbox_object_id == inbox_object.id
 
     # And an Accept activity was created in the outbox
-    outbox_object = db.execute(select(models.OutboxObject)).scalar_one()
+    outbox_object = db.execute(select(activitypub.models.OutboxObject)).scalar_one()
     assert outbox_object.ap_type == "Accept"
     assert outbox_object.activity_object_ap_id == follow_activity.ap_id
 
     # And an outgoing activity was created to track the Accept activity delivery
-    outgoing_activity = db.execute(select(models.OutgoingActivity)).scalar_one()
+    outgoing_activity = db.execute(select(activitypub.models.OutgoingActivity)).scalar_one()
     assert outgoing_activity.outbox_object_id == outbox_object.id
 
 
@@ -121,19 +122,19 @@ def test_inbox_incoming_follow_request__manually_approves_followers(
     # Then the server returns a 202
     assert response.status_code == 202
 
-    with mock.patch("app.boxes.MANUALLY_APPROVES_FOLLOWERS", True):
+    with mock.patch("activitypub.boxes.MANUALLY_APPROVES_FOLLOWERS", True):
         run_process_next_incoming_activity()
 
     # And the actor was saved in DB
-    saved_actor = db.execute(select(models.Actor)).scalar_one()
+    saved_actor = db.execute(select(activitypub.models.Actor)).scalar_one()
     assert saved_actor.ap_id == ra.ap_id
 
     # And the Follow activity was saved in the inbox
-    inbox_object = db.execute(select(models.InboxObject)).scalar_one()
+    inbox_object = db.execute(select(activitypub.models.InboxObject)).scalar_one()
     assert inbox_object.ap_object == follow_activity.ap_object
 
     # And no follower was internally created
-    assert db.scalar(select(func.count(models.Follower.id))) == 0
+    assert db.scalar(select(func.count(activitypub.models.Follower.id))) == 0
 
 
 def test_inbox_accept_follow_request(
@@ -180,13 +181,13 @@ def test_inbox_accept_follow_request(
     run_process_next_incoming_activity()
 
     # And the Accept activity was saved in the inbox
-    inbox_activity = db.execute(select(models.InboxObject)).scalar_one()
+    inbox_activity = db.execute(select(activitypub.models.InboxObject)).scalar_one()
     assert inbox_activity.ap_type == "Accept"
     assert inbox_activity.relates_to_outbox_object_id == outbox_object.id
     assert inbox_activity.actor_id == actor_in_db.id
 
     # And a following entry was created internally
-    following = db.execute(select(models.Following)).scalar_one()
+    following = db.execute(select(activitypub.models.Following)).scalar_one()
     assert following.ap_actor_id == actor_in_db.ap_id
 
 
@@ -227,15 +228,15 @@ def test_inbox__create_from_follower(
     run_process_next_incoming_activity()
 
     # Then the Create activity was saved
-    create_activity_from_inbox: models.InboxObject | None = db.execute(
-        select(models.InboxObject).where(models.InboxObject.ap_type == "Create")
+    create_activity_from_inbox: activitypub.models.InboxObject | None = db.execute(
+        select(activitypub.models.InboxObject).where(activitypub.models.InboxObject.ap_type == "Create")
     ).scalar_one_or_none()
     assert create_activity_from_inbox
     assert create_activity_from_inbox.ap_id == ro.ap_id
 
     # And the Note object was created
-    note_activity_from_inbox: models.InboxObject | None = db.execute(
-        select(models.InboxObject).where(models.InboxObject.ap_type == "Note")
+    note_activity_from_inbox: activitypub.models.InboxObject | None = db.execute(
+        select(activitypub.models.InboxObject).where(activitypub.models.InboxObject.ap_type == "Note")
     ).scalar_one_or_none()
     assert note_activity_from_inbox
     assert note_activity_from_inbox.ap_id == ro.activity_object_ap_id
@@ -281,8 +282,8 @@ def test_inbox__create_already_deleted_object(
     run_process_next_incoming_activity()
 
     # Then the Create activity was saved
-    create_activity_from_inbox: models.InboxObject | None = db.execute(
-        select(models.InboxObject).where(models.InboxObject.ap_type == "Create")
+    create_activity_from_inbox: activitypub.models.InboxObject | None = db.execute(
+        select(activitypub.models.InboxObject).where(activitypub.models.InboxObject.ap_type == "Create")
     ).scalar_one_or_none()
     assert create_activity_from_inbox
     assert create_activity_from_inbox.ap_id == ro.ap_id
@@ -292,7 +293,7 @@ def test_inbox__create_already_deleted_object(
     # And the Note wasn't created
     assert (
         db.execute(
-            select(models.InboxObject).where(models.InboxObject.ap_type == "Note")
+            select(activitypub.models.InboxObject).where(activitypub.models.InboxObject.ap_type == "Note")
         ).scalar_one_or_none()
         is None
     )
@@ -339,8 +340,8 @@ def test_inbox__actor_is_blocked(
     # Then the Create activity was discarded
     assert (
         db.scalar(
-            select(func.count(models.InboxObject.id)).where(
-                models.InboxObject.ap_type != "Follow"
+            select(func.count(activitypub.models.InboxObject.id)).where(
+                activitypub.models.InboxObject.ap_type != "Follow"
             )
         )
         == 0
@@ -386,19 +387,19 @@ def test_inbox__move_activity(
     run_process_next_incoming_activity()
 
     # And the Move activity was saved in the inbox
-    inbox_activity = db.execute(select(models.InboxObject)).scalar_one()
+    inbox_activity = db.execute(select(activitypub.models.InboxObject)).scalar_one()
     assert inbox_activity.ap_type == "Move"
     assert inbox_activity.actor_id == old_actor.id
 
     # And the following actor was deleted
-    assert db.scalar(select(func.count(models.Following.id))) == 0
+    assert db.scalar(select(func.count(activitypub.models.Following.id))) == 0
 
     # And the follow was undone
     assert (
         db.scalar(
-            select(func.count(models.OutboxObject.id)).where(
-                models.OutboxObject.ap_type == "Undo",
-                models.OutboxObject.activity_object_ap_id == follow_id,
+            select(func.count(activitypub.models.OutboxObject.id)).where(
+                activitypub.models.OutboxObject.ap_type == "Undo",
+                activitypub.models.OutboxObject.activity_object_ap_id == follow_id,
             )
         )
         == 1
@@ -407,9 +408,9 @@ def test_inbox__move_activity(
     # And the new account was followed
     assert (
         db.scalar(
-            select(func.count(models.OutboxObject.id)).where(
-                models.OutboxObject.ap_type == "Follow",
-                models.OutboxObject.activity_object_ap_id == new_ra.ap_id,
+            select(func.count(activitypub.models.OutboxObject.id)).where(
+                activitypub.models.OutboxObject.ap_type == "Follow",
+                activitypub.models.OutboxObject.activity_object_ap_id == new_ra.ap_id,
             )
         )
         == 1
@@ -457,12 +458,12 @@ def test_inbox__block_activity(
     run_process_next_incoming_activity()
 
     # And the actor was saved in DB
-    saved_actor = db.execute(select(models.Actor)).scalar_one()
+    saved_actor = db.execute(select(activitypub.models.Actor)).scalar_one()
     assert saved_actor.ap_id == ra.ap_id
 
     # And the Block activity was saved in the inbox
     inbox_activity = db.execute(
-        select(models.InboxObject).where(models.InboxObject.ap_type == "Block")
+        select(activitypub.models.InboxObject).where(activitypub.models.InboxObject.ap_type == "Block")
     ).scalar_one()
 
     # And a notification was created

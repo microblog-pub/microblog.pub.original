@@ -6,18 +6,18 @@ import respx
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from app import models
-from app.actor import LOCAL_ACTOR
-from app.ap_object import RemoteObject
+import activitypub.models
+from activitypub.actor import LOCAL_ACTOR
+from activitypub.ap_object import RemoteObject
 from app.database import AsyncSession
-from app.outgoing_activities import _MAX_RETRIES
-from app.outgoing_activities import fetch_next_outgoing_activity
-from app.outgoing_activities import new_outgoing_activity
-from app.outgoing_activities import process_next_outgoing_activity
-from tests import factories
+from activitypub.outgoing_activities import _MAX_RETRIES
+from activitypub.outgoing_activities import fetch_next_outgoing_activity
+from activitypub.outgoing_activities import new_outgoing_activity
+from activitypub.outgoing_activities import process_next_outgoing_activity
+from activitypub.tests import factories
 
 
-def _setup_outbox_object() -> models.OutboxObject:
+def _setup_outbox_object() -> activitypub.models.OutboxObject:
     ra = factories.RemoteActorFactory(
         base_url="https://example.com",
         username="toto",
@@ -59,7 +59,7 @@ async def test_new_outgoing_activity(
     await async_db_session.commit()
 
     assert (
-        await async_db_session.execute(select(models.OutgoingActivity))
+        await async_db_session.execute(select(activitypub.models.OutgoingActivity))
     ).scalar_one() == outgoing_activity
     assert outgoing_activity.outbox_object_id == outbox_object.id
     assert outgoing_activity.recipient == inbox_url
@@ -101,7 +101,7 @@ async def test_process_next_outgoing_activity__server_200(
     assert respx_mock.calls.call_count == 1
 
     outgoing_activity = (
-        await async_db_session.execute(select(models.OutgoingActivity))
+        await async_db_session.execute(select(activitypub.models.OutgoingActivity))
     ).scalar_one()
     assert outgoing_activity.is_sent is True
     assert outgoing_activity.last_status_code == 204
@@ -136,7 +136,7 @@ async def test_process_next_outgoing_activity__webmention(
     assert respx_mock.calls.call_count == 1
 
     outgoing_activity = (
-        await async_db_session.execute(select(models.OutgoingActivity))
+        await async_db_session.execute(select(activitypub.models.OutgoingActivity))
     ).scalar_one()
     assert outgoing_activity.is_sent is True
     assert outgoing_activity.last_status_code == 204
@@ -172,7 +172,7 @@ async def test_process_next_outgoing_activity__error_500(
     assert respx_mock.calls.call_count == 1
 
     outgoing_activity = (
-        await async_db_session.execute(select(models.OutgoingActivity))
+        await async_db_session.execute(select(activitypub.models.OutgoingActivity))
     ).scalar_one()
     assert outgoing_activity.is_sent is False
     assert outgoing_activity.last_status_code == 500
@@ -210,7 +210,7 @@ async def test_process_next_outgoing_activity__errored(
     assert respx_mock.calls.call_count == 1
 
     outgoing_activity = (
-        await async_db_session.execute(select(models.OutgoingActivity))
+        await async_db_session.execute(select(activitypub.models.OutgoingActivity))
     ).scalar_one()
     assert outgoing_activity.is_sent is False
     assert outgoing_activity.last_status_code == 500
@@ -248,7 +248,7 @@ async def test_process_next_outgoing_activity__connect_error(
     assert respx_mock.calls.call_count == 1
 
     outgoing_activity = (
-        await async_db_session.execute(select(models.OutgoingActivity))
+        await async_db_session.execute(select(activitypub.models.OutgoingActivity))
     ).scalar_one()
     assert outgoing_activity.is_sent is False
     assert outgoing_activity.error is not None

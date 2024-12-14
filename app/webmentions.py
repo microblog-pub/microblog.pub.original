@@ -11,13 +11,14 @@ from loguru import logger
 from sqlalchemy import func
 from sqlalchemy import select
 
+import activitypub.models
 from app import models
-from app.boxes import _get_outbox_announces_count
-from app.boxes import _get_outbox_likes_count
-from app.boxes import _get_outbox_replies_count
-from app.boxes import get_outbox_object_by_ap_id
-from app.boxes import get_outbox_object_by_slug_and_short_id
-from app.boxes import is_notification_enabled
+from activitypub.boxes import _get_outbox_announces_count
+from activitypub.boxes import _get_outbox_likes_count
+from activitypub.boxes import _get_outbox_replies_count
+from activitypub.boxes import get_outbox_object_by_ap_id
+from activitypub.boxes import get_outbox_object_by_slug_and_short_id
+from activitypub.boxes import is_notification_enabled
 from app.database import AsyncSession
 from app.database import get_db_session
 from app.utils import microformats
@@ -205,7 +206,7 @@ async def webmention_endpoint(
 async def _handle_webmention_side_effects(
     db_session: AsyncSession,
     webmention: models.Webmention,
-    mentioned_object: models.OutboxObject,
+    mentioned_object: activitypub.models.OutboxObject,
 ) -> None:
     if webmention.webmention_type == models.WebmentionType.UNKNOWN:
         # TODO: recount everything

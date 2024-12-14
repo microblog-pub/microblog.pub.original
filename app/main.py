@@ -42,9 +42,9 @@ from starlette.responses import JSONResponse
 from starlette.types import Message
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware  # type: ignore
 
-from app import activitypub as ap
+import activitypub.models
+from activitypub import activitypub as ap, boxes
 from app import admin
-from app import boxes
 from app import config
 from app import httpsig
 from app import indieauth
@@ -53,9 +53,9 @@ from app import micropub
 from app import models
 from app import templates
 from app import webmentions
-from app.actor import LOCAL_ACTOR
-from app.actor import get_actors_metadata
-from app.boxes import public_outbox_objects_count
+from activitypub.actor import LOCAL_ACTOR
+from activitypub.actor import get_actors_metadata
+from activitypub.boxes import public_outbox_objects_count
 from app.config import BASE_URL
 from app.config import DEBUG
 from app.config import DOMAIN
@@ -69,7 +69,7 @@ from app.customization import get_custom_router
 from app.database import AsyncSession
 from app.database import async_session
 from app.database import get_db_session
-from app.incoming_activities import new_ap_incoming_activity
+from activitypub.incoming_activities import new_ap_incoming_activity
 from app.templates import is_current_user_admin
 from app.uploads import UPLOAD_DIR
 from app.utils import pagination
@@ -295,34 +295,34 @@ async def index(
 
     page = page or 1
     where = (
-        models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
-        models.OutboxObject.is_deleted.is_(False),
-        models.OutboxObject.is_hidden_from_homepage.is_(False),
-        models.OutboxObject.ap_type.in_(["Announce", "Note", "Video", "Question"]),
+        activitypub.models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
+        activitypub.models.OutboxObject.is_deleted.is_(False),
+        activitypub.models.OutboxObject.is_hidden_from_homepage.is_(False),
+        activitypub.models.OutboxObject.ap_type.in_(["Announce", "Note", "Video", "Question"]),
     )
-    q = select(models.OutboxObject).where(*where)
+    q = select(activitypub.models.OutboxObject).where(*where)
     total_count = await db_session.scalar(
-        select(func.count(models.OutboxObject.id)).where(*where)
+        select(func.count(activitypub.models.OutboxObject.id)).where(*where)
     )
     page_size = 20
     page_offset = (page - 1) * page_size
 
     outbox_objects_result = await db_session.scalars(
         q.options(
-            joinedload(models.OutboxObject.outbox_object_attachments).options(
-                joinedload(models.OutboxObjectAttachment.upload)
+            joinedload(activitypub.models.OutboxObject.outbox_object_attachments).options(
+                joinedload(activitypub.models.OutboxObjectAttachment.upload)
             ),
-            joinedload(models.OutboxObject.relates_to_inbox_object).options(
-                joinedload(models.InboxObject.actor),
+            joinedload(activitypub.models.OutboxObject.relates_to_inbox_object).options(
+                joinedload(activitypub.models.InboxObject.actor),
             ),
-            joinedload(models.OutboxObject.relates_to_outbox_object).options(
-                joinedload(models.OutboxObject.outbox_object_attachments).options(
-                    joinedload(models.OutboxObjectAttachment.upload)
+            joinedload(activitypub.models.OutboxObject.relates_to_outbox_object).options(
+                joinedload(activitypub.models.OutboxObject.outbox_object_attachments).options(
+                    joinedload(activitypub.models.OutboxObjectAttachment.upload)
                 ),
             ),
         )
-        .order_by(models.OutboxObject.is_pinned.desc())
-        .order_by(models.OutboxObject.ap_published_at.desc())
+        .order_by(activitypub.models.OutboxObject.is_pinned.desc())
+        .order_by(activitypub.models.OutboxObject.ap_published_at.desc())
         .offset(page_offset)
         .limit(page_size)
     )
@@ -352,27 +352,27 @@ async def articles(
     # TODO: special ActivityPub collection for Article
 
     where = (
-        models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
-        models.OutboxObject.is_deleted.is_(False),
-        models.OutboxObject.is_hidden_from_homepage.is_(False),
-        models.OutboxObject.ap_type == "Article",
+        activitypub.models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
+        activitypub.models.OutboxObject.is_deleted.is_(False),
+        activitypub.models.OutboxObject.is_hidden_from_homepage.is_(False),
+        activitypub.models.OutboxObject.ap_type == "Article",
     )
-    q = select(models.OutboxObject).where(*where)
+    q = select(activitypub.models.OutboxObject).where(*where)
 
     outbox_objects_result = await db_session.scalars(
         q.options(
-            joinedload(models.OutboxObject.outbox_object_attachments).options(
-                joinedload(models.OutboxObjectAttachment.upload)
+            joinedload(activitypub.models.OutboxObject.outbox_object_attachments).options(
+                joinedload(activitypub.models.OutboxObjectAttachment.upload)
             ),
-            joinedload(models.OutboxObject.relates_to_inbox_object).options(
-                joinedload(models.InboxObject.actor),
+            joinedload(activitypub.models.OutboxObject.relates_to_inbox_object).options(
+                joinedload(activitypub.models.InboxObject.actor),
             ),
-            joinedload(models.OutboxObject.relates_to_outbox_object).options(
-                joinedload(models.OutboxObject.outbox_object_attachments).options(
-                    joinedload(models.OutboxObjectAttachment.upload)
+            joinedload(activitypub.models.OutboxObject.relates_to_outbox_object).options(
+                joinedload(activitypub.models.OutboxObject.outbox_object_attachments).options(
+                    joinedload(activitypub.models.OutboxObjectAttachment.upload)
                 ),
             ),
-        ).order_by(models.OutboxObject.ap_published_at.desc())
+        ).order_by(activitypub.models.OutboxObject.ap_published_at.desc())
     )
     outbox_objects = outbox_objects_result.unique().all()
 
@@ -389,7 +389,7 @@ async def articles(
 
 async def _build_followx_collection(
     db_session: AsyncSession,
-    model_cls: Type[models.Following | models.Follower],
+    model_cls: Type[activitypub.models.Following | activitypub.models.Follower],
     path: str,
     page: bool | None,
     next_cursor: str | None,
@@ -444,7 +444,7 @@ async def _build_followx_collection(
 
 async def _empty_followx_collection(
     db_session: AsyncSession,
-    model_cls: Type[models.Following | models.Follower],
+    model_cls: Type[activitypub.models.Following | activitypub.models.Follower],
     path: str,
 ) -> ap.RawObject:
     total_items = await db_session.scalar(select(func.count(model_cls.id)))
@@ -475,7 +475,7 @@ async def followers(
             return ActivityPubResponse(
                 await _empty_followx_collection(
                     db_session=db_session,
-                    model_cls=models.Follower,
+                    model_cls=activitypub.models.Follower,
                     path="/followers",
                 )
             )
@@ -483,7 +483,7 @@ async def followers(
             return ActivityPubResponse(
                 await _build_followx_collection(
                     db_session=db_session,
-                    model_cls=models.Follower,
+                    model_cls=activitypub.models.Follower,
                     path="/followers",
                     page=page,
                     next_cursor=next_cursor,
@@ -495,9 +495,9 @@ async def followers(
 
     # We only show the most recent 100 followers on the public website
     followers_result = await db_session.scalars(
-        select(models.Follower)
-        .options(joinedload(models.Follower.actor))
-        .order_by(models.Follower.created_at.desc())
+        select(activitypub.models.Follower)
+        .options(joinedload(activitypub.models.Follower.actor))
+        .order_by(activitypub.models.Follower.created_at.desc())
         .limit(100)
     )
     followers = followers_result.unique().all()
@@ -536,7 +536,7 @@ async def following(
             return ActivityPubResponse(
                 await _empty_followx_collection(
                     db_session=db_session,
-                    model_cls=models.Following,
+                    model_cls=activitypub.models.Following,
                     path="/following",
                 )
             )
@@ -544,7 +544,7 @@ async def following(
             return ActivityPubResponse(
                 await _build_followx_collection(
                     db_session=db_session,
-                    model_cls=models.Following,
+                    model_cls=activitypub.models.Following,
                     path="/following",
                     page=page,
                     next_cursor=next_cursor,
@@ -558,9 +558,9 @@ async def following(
     following = (
         (
             await db_session.scalars(
-                select(models.Following)
-                .options(joinedload(models.Following.actor))
-                .order_by(models.Following.created_at.desc())
+                select(activitypub.models.Following)
+                .options(joinedload(activitypub.models.Following.actor))
+                .order_by(activitypub.models.Following.created_at.desc())
                 .limit(100)
             )
         )
@@ -599,19 +599,19 @@ async def outbox(
 
     # Default restrictions unless the request is authenticated with an access token
     restricted_where = [
-        models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
-        models.OutboxObject.ap_type.in_(["Create", "Note", "Article", "Announce"]),
+        activitypub.models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
+        activitypub.models.OutboxObject.ap_type.in_(["Create", "Note", "Article", "Announce"]),
     ]
 
     # By design, we only show the last 20 public activities in the oubox
     outbox_objects = (
         await db_session.scalars(
-            select(models.OutboxObject)
+            select(activitypub.models.OutboxObject)
             .where(
-                models.OutboxObject.is_deleted.is_(False),
+                activitypub.models.OutboxObject.is_deleted.is_(False),
                 *([] if maybe_access_token_info else restricted_where),
             )
-            .order_by(models.OutboxObject.ap_published_at.desc())
+            .order_by(activitypub.models.OutboxObject.ap_published_at.desc())
             .limit(20)
         )
     ).all()
@@ -680,13 +680,13 @@ async def featured(
 ) -> ActivityPubResponse:
     outbox_objects = (
         await db_session.scalars(
-            select(models.OutboxObject)
+            select(activitypub.models.OutboxObject)
             .filter(
-                models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
-                models.OutboxObject.is_deleted.is_(False),
-                models.OutboxObject.is_pinned.is_(True),
+                activitypub.models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
+                activitypub.models.OutboxObject.is_deleted.is_(False),
+                activitypub.models.OutboxObject.is_pinned.is_(True),
             )
-            .order_by(models.OutboxObject.ap_published_at.desc())
+            .order_by(activitypub.models.OutboxObject.ap_published_at.desc())
             .limit(5)
         )
     ).all()
@@ -704,7 +704,7 @@ async def featured(
 async def _check_outbox_object_acl(
     request: Request,
     db_session: AsyncSession,
-    ap_object: models.OutboxObject,
+    ap_object: activitypub.models.OutboxObject,
     httpsig_info: httpsig.HTTPSigInfo,
 ) -> None:
     if templates.is_current_user_admin(request):
@@ -743,19 +743,19 @@ async def _check_outbox_object_acl(
 
 async def _fetch_likes(
     db_session: AsyncSession,
-    outbox_object: models.OutboxObject,
-) -> list[models.InboxObject]:
+    outbox_object: activitypub.models.OutboxObject,
+) -> list[activitypub.models.InboxObject]:
     return (
         (
             await db_session.scalars(
-                select(models.InboxObject)
+                select(activitypub.models.InboxObject)
                 .where(
-                    models.InboxObject.ap_type == "Like",
-                    models.InboxObject.activity_object_ap_id == outbox_object.ap_id,
-                    models.InboxObject.is_deleted.is_(False),
+                    activitypub.models.InboxObject.ap_type == "Like",
+                    activitypub.models.InboxObject.activity_object_ap_id == outbox_object.ap_id,
+                    activitypub.models.InboxObject.is_deleted.is_(False),
                 )
-                .options(joinedload(models.InboxObject.actor))
-                .order_by(models.InboxObject.ap_published_at.desc())
+                .options(joinedload(activitypub.models.InboxObject.actor))
+                .order_by(activitypub.models.InboxObject.ap_published_at.desc())
                 .limit(10)
             )
         )
@@ -766,19 +766,19 @@ async def _fetch_likes(
 
 async def _fetch_shares(
     db_session: AsyncSession,
-    outbox_object: models.OutboxObject,
-) -> list[models.InboxObject]:
+    outbox_object: activitypub.models.OutboxObject,
+) -> list[activitypub.models.InboxObject]:
     return (
         (
             await db_session.scalars(
-                select(models.InboxObject)
+                select(activitypub.models.InboxObject)
                 .filter(
-                    models.InboxObject.ap_type == "Announce",
-                    models.InboxObject.activity_object_ap_id == outbox_object.ap_id,
-                    models.InboxObject.is_deleted.is_(False),
+                    activitypub.models.InboxObject.ap_type == "Announce",
+                    activitypub.models.InboxObject.activity_object_ap_id == outbox_object.ap_id,
+                    activitypub.models.InboxObject.is_deleted.is_(False),
                 )
-                .options(joinedload(models.InboxObject.actor))
-                .order_by(models.InboxObject.ap_published_at.desc())
+                .options(joinedload(activitypub.models.InboxObject.actor))
+                .order_by(activitypub.models.InboxObject.ap_published_at.desc())
                 .limit(10)
             )
         )
@@ -789,7 +789,7 @@ async def _fetch_shares(
 
 async def _fetch_webmentions(
     db_session: AsyncSession,
-    outbox_object: models.OutboxObject,
+    outbox_object: activitypub.models.OutboxObject,
 ) -> list[models.Webmention]:
     return (
         await db_session.scalars(
@@ -813,15 +813,15 @@ async def outbox_by_public_id(
     maybe_object = (
         (
             await db_session.execute(
-                select(models.OutboxObject)
+                select(activitypub.models.OutboxObject)
                 .options(
-                    joinedload(models.OutboxObject.outbox_object_attachments).options(
-                        joinedload(models.OutboxObjectAttachment.upload)
+                    joinedload(activitypub.models.OutboxObject.outbox_object_attachments).options(
+                        joinedload(activitypub.models.OutboxObjectAttachment.upload)
                     )
                 )
                 .where(
-                    models.OutboxObject.public_id == public_id,
-                    models.OutboxObject.is_deleted.is_(False),
+                    activitypub.models.OutboxObject.public_id == public_id,
+                    activitypub.models.OutboxObject.is_deleted.is_(False),
                 )
             )
         )
@@ -889,7 +889,7 @@ def _filter_webmentions(
 
 
 def _merge_faces_from_inbox_object_and_webmentions(
-    inbox_objects: list[models.InboxObject],
+    inbox_objects: list[activitypub.models.InboxObject],
     webmentions: list[models.Webmention],
     webmention_type: models.WebmentionType,
 ) -> list[Face]:
@@ -991,9 +991,9 @@ async def outbox_activity_by_public_id(
 ) -> ActivityPubResponse:
     maybe_object = (
         await db_session.execute(
-            select(models.OutboxObject).where(
-                models.OutboxObject.public_id == public_id,
-                models.OutboxObject.is_deleted.is_(False),
+            select(activitypub.models.OutboxObject).where(
+                activitypub.models.OutboxObject.public_id == public_id,
+                activitypub.models.OutboxObject.is_deleted.is_(False),
             )
         )
     ).scalar_one_or_none()
@@ -1013,13 +1013,13 @@ async def tag_by_name(
     _: httpsig.HTTPSigInfo = Depends(httpsig.httpsig_checker),
 ) -> ActivityPubResponse | templates.TemplateResponse:
     where = [
-        models.TaggedOutboxObject.tag == tag.lower(),
-        models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
-        models.OutboxObject.is_deleted.is_(False),
+        activitypub.models.TaggedOutboxObject.tag == tag.lower(),
+        activitypub.models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
+        activitypub.models.OutboxObject.is_deleted.is_(False),
     ]
     tagged_count = await db_session.scalar(
-        select(func.count(models.OutboxObject.id))
-        .join(models.TaggedOutboxObject)
+        select(func.count(activitypub.models.OutboxObject.id))
+        .join(activitypub.models.TaggedOutboxObject)
         .where(*where)
     )
     if is_activitypub_requested(request):
@@ -1027,13 +1027,13 @@ async def tag_by_name(
             raise HTTPException(status_code=404)
 
         outbox_object_ids = await db_session.execute(
-            select(models.OutboxObject.ap_id)
+            select(activitypub.models.OutboxObject.ap_id)
             .join(
-                models.TaggedOutboxObject,
-                models.TaggedOutboxObject.outbox_object_id == models.OutboxObject.id,
+                activitypub.models.TaggedOutboxObject,
+                activitypub.models.TaggedOutboxObject.outbox_object_id == activitypub.models.OutboxObject.id,
             )
             .where(*where)
-            .order_by(models.OutboxObject.ap_published_at.desc())
+            .order_by(activitypub.models.OutboxObject.ap_published_at.desc())
             .limit(20)
         )
         return ActivityPubResponse(
@@ -1049,18 +1049,18 @@ async def tag_by_name(
         )
 
     outbox_objects_result = await db_session.scalars(
-        select(models.OutboxObject)
+        select(activitypub.models.OutboxObject)
         .where(*where)
         .join(
-            models.TaggedOutboxObject,
-            models.TaggedOutboxObject.outbox_object_id == models.OutboxObject.id,
+            activitypub.models.TaggedOutboxObject,
+            activitypub.models.TaggedOutboxObject.outbox_object_id == activitypub.models.OutboxObject.id,
         )
         .options(
-            joinedload(models.OutboxObject.outbox_object_attachments).options(
-                joinedload(models.OutboxObjectAttachment.upload)
+            joinedload(activitypub.models.OutboxObject.outbox_object_attachments).options(
+                joinedload(activitypub.models.OutboxObjectAttachment.upload)
             )
         )
-        .order_by(models.OutboxObject.ap_published_at.desc())
+        .order_by(activitypub.models.OutboxObject.ap_published_at.desc())
         .limit(20)
     )
     outbox_objects = outbox_objects_result.unique().all()
@@ -1098,12 +1098,12 @@ async def get_inbox(
     next_cursor: str | None = None,
 ) -> ActivityPubResponse:
     where = [
-        models.InboxObject.ap_type.in_(
+        activitypub.models.InboxObject.ap_type.in_(
             ["Create", "Follow", "Like", "Announce", "Undo", "Update"]
         )
     ]
     total_items = await db_session.scalar(
-        select(func.count(models.InboxObject.id)).where(*where)
+        select(func.count(activitypub.models.InboxObject.id)).where(*where)
     )
 
     if not page and not next_cursor:
@@ -1118,13 +1118,13 @@ async def get_inbox(
         )
 
     q = (
-        select(models.InboxObject)
+        select(activitypub.models.InboxObject)
         .where(*where)
-        .order_by(models.InboxObject.created_at.desc())
+        .order_by(activitypub.models.InboxObject.created_at.desc())
     )  # type: ignore
     if next_cursor:
         q = q.where(
-            models.InboxObject.created_at
+            activitypub.models.InboxObject.created_at
             < pagination.decode_cursor(next_cursor)  # type: ignore
         )
     q = q.limit(20)
@@ -1134,8 +1134,8 @@ async def get_inbox(
     if (
         items
         and await db_session.scalar(
-            select(func.count(models.InboxObject.id)).where(
-                *where, models.InboxObject.created_at < items[-1].created_at
+            select(func.count(activitypub.models.InboxObject.id)).where(
+                *where, activitypub.models.InboxObject.created_at < items[-1].created_at
             )
         )
         > 0
@@ -1538,8 +1538,8 @@ async def serve_attachment(
 ):
     upload = (
         await db_session.execute(
-            select(models.Upload).where(
-                models.Upload.content_hash == content_hash,
+            select(activitypub.models.Upload).where(
+                activitypub.models.Upload.content_hash == content_hash,
             )
         )
     ).scalar_one_or_none()
@@ -1562,8 +1562,8 @@ async def serve_attachment_thumbnail(
 ):
     upload = (
         await db_session.execute(
-            select(models.Upload).where(
-                models.Upload.content_hash == content_hash,
+            select(activitypub.models.Upload).where(
+                activitypub.models.Upload.content_hash == content_hash,
             )
         )
     ).scalar_one_or_none()
@@ -1596,22 +1596,22 @@ Disallow: /remote_interaction
 Disallow: /remote_follow"""
 
 
-async def _get_outbox_for_feed(db_session: AsyncSession) -> list[models.OutboxObject]:
+async def _get_outbox_for_feed(db_session: AsyncSession) -> list[activitypub.models.OutboxObject]:
     return (
         (
             await db_session.scalars(
-                select(models.OutboxObject)
+                select(activitypub.models.OutboxObject)
                 .where(
-                    models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
-                    models.OutboxObject.is_deleted.is_(False),
-                    models.OutboxObject.ap_type.in_(["Note", "Article", "Video"]),
+                    activitypub.models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
+                    activitypub.models.OutboxObject.is_deleted.is_(False),
+                    activitypub.models.OutboxObject.ap_type.in_(["Note", "Article", "Video"]),
                 )
                 .options(
-                    joinedload(models.OutboxObject.outbox_object_attachments).options(
-                        joinedload(models.OutboxObjectAttachment.upload)
+                    joinedload(activitypub.models.OutboxObject.outbox_object_attachments).options(
+                        joinedload(activitypub.models.OutboxObjectAttachment.upload)
                     )
                 )
-                .order_by(models.OutboxObject.ap_published_at.desc())
+                .order_by(activitypub.models.OutboxObject.ap_published_at.desc())
                 .limit(20)
             )
         )

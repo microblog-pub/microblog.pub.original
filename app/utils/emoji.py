@@ -4,7 +4,7 @@ import typing
 from pathlib import Path
 
 if typing.TYPE_CHECKING:
-    from app.activitypub import RawObject
+    from activitypub.activitypub import RawObject
 
 EMOJI_REGEX = re.compile(r"(:[\d\w]+:)")
 

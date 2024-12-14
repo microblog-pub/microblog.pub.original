@@ -18,19 +18,19 @@ from sqlalchemy import or_
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from app import activitypub as ap
-from app import boxes
+import activitypub.models
+from activitypub import activitypub as ap, boxes
 from app import models
 from app import templates
-from app.actor import LOCAL_ACTOR
-from app.actor import fetch_actor
-from app.actor import get_actors_metadata
-from app.actor import list_actors
-from app.boxes import get_inbox_object_by_ap_id
-from app.boxes import get_outbox_object_by_ap_id
-from app.boxes import send_block
-from app.boxes import send_follow
-from app.boxes import send_unblock
+from activitypub.actor import LOCAL_ACTOR
+from activitypub.actor import fetch_actor
+from activitypub.actor import get_actors_metadata
+from activitypub.actor import list_actors
+from activitypub.boxes import get_inbox_object_by_ap_id
+from activitypub.boxes import get_outbox_object_by_ap_id
+from activitypub.boxes import send_block
+from activitypub.boxes import send_follow
+from activitypub.boxes import send_unblock
 from app.config import EMOJIS
 from app.config import SESSION_TIMEOUT
 from app.config import generate_csrf_token
@@ -236,24 +236,24 @@ async def admin_bookmarks(
     stream = (
         (
             await db_session.scalars(
-                select(models.InboxObject)
+                select(activitypub.models.InboxObject)
                 .where(
-                    models.InboxObject.ap_type.in_(
+                    activitypub.models.InboxObject.ap_type.in_(
                         ["Note", "Article", "Video", "Announce"]
                     ),
-                    models.InboxObject.is_bookmarked.is_(True),
-                    models.InboxObject.is_deleted.is_(False),
+                    activitypub.models.InboxObject.is_bookmarked.is_(True),
+                    activitypub.models.InboxObject.is_deleted.is_(False),
                 )
                 .options(
-                    joinedload(models.InboxObject.relates_to_inbox_object),
-                    joinedload(models.InboxObject.relates_to_outbox_object).options(
+                    joinedload(activitypub.models.InboxObject.relates_to_inbox_object),
+                    joinedload(activitypub.models.InboxObject.relates_to_outbox_object).options(
                         joinedload(
-                            models.OutboxObject.outbox_object_attachments
-                        ).options(joinedload(models.OutboxObjectAttachment.upload)),
+                            activitypub.models.OutboxObject.outbox_object_attachments
+                        ).options(joinedload(activitypub.models.OutboxObjectAttachment.upload)),
                     ),
-                    joinedload(models.InboxObject.actor),
+                    joinedload(activitypub.models.InboxObject.actor),
                 )
-                .order_by(models.InboxObject.ap_published_at.desc())
+                .order_by(activitypub.models.InboxObject.ap_published_at.desc())
                 .limit(20)
             )
         )
@@ -277,35 +277,35 @@ async def admin_stream(
     cursor: str | None = None,
 ) -> templates.TemplateResponse:
     where = [
-        models.InboxObject.is_hidden_from_stream.is_(False),
-        models.InboxObject.is_deleted.is_(False),
+        activitypub.models.InboxObject.is_hidden_from_stream.is_(False),
+        activitypub.models.InboxObject.is_deleted.is_(False),
     ]
     if cursor:
         where.append(
-            models.InboxObject.ap_published_at < pagination.decode_cursor(cursor)
+            activitypub.models.InboxObject.ap_published_at < pagination.decode_cursor(cursor)
         )
 
     page_size = 20
     remaining_count = await db_session.scalar(
-        select(func.count(models.InboxObject.id)).where(*where)
+        select(func.count(activitypub.models.InboxObject.id)).where(*where)
     )
-    q = select(models.InboxObject).where(*where)
+    q = select(activitypub.models.InboxObject).where(*where)
 
     inbox = (
         (
             await db_session.scalars(
                 q.options(
-                    joinedload(models.InboxObject.relates_to_inbox_object).options(
-                        joinedload(models.InboxObject.actor)
+                    joinedload(activitypub.models.InboxObject.relates_to_inbox_object).options(
+                        joinedload(activitypub.models.InboxObject.actor)
                     ),
-                    joinedload(models.InboxObject.relates_to_outbox_object).options(
+                    joinedload(activitypub.models.InboxObject.relates_to_outbox_object).options(
                         joinedload(
-                            models.OutboxObject.outbox_object_attachments
-                        ).options(joinedload(models.OutboxObjectAttachment.upload)),
+                            activitypub.models.OutboxObject.outbox_object_attachments
+                        ).options(joinedload(activitypub.models.OutboxObjectAttachment.upload)),
                     ),
-                    joinedload(models.InboxObject.actor),
+                    joinedload(activitypub.models.InboxObject.actor),
                 )
-                .order_by(models.InboxObject.ap_published_at.desc())
+                .order_by(activitypub.models.InboxObject.ap_published_at.desc())
                 .limit(20)
             )
         )
@@ -349,7 +349,7 @@ async def admin_inbox(
     cursor: str | None = None,
 ) -> templates.TemplateResponse:
     where = [
-        models.InboxObject.ap_type.not_in(
+        activitypub.models.InboxObject.ap_type.not_in(
             [
                 "Accept",
                 "Delete",
@@ -363,37 +363,37 @@ async def admin_inbox(
                 "EmojiReact",
             ]
         ),
-        models.InboxObject.is_deleted.is_(False),
-        models.InboxObject.is_transient.is_(False),
+        activitypub.models.InboxObject.is_deleted.is_(False),
+        activitypub.models.InboxObject.is_transient.is_(False),
     ]
     if filter_by:
-        where.append(models.InboxObject.ap_type == filter_by)
+        where.append(activitypub.models.InboxObject.ap_type == filter_by)
     if cursor:
         where.append(
-            models.InboxObject.ap_published_at < pagination.decode_cursor(cursor)
+            activitypub.models.InboxObject.ap_published_at < pagination.decode_cursor(cursor)
         )
 
     page_size = 20
     remaining_count = await db_session.scalar(
-        select(func.count(models.InboxObject.id)).where(*where)
+        select(func.count(activitypub.models.InboxObject.id)).where(*where)
     )
-    q = select(models.InboxObject).where(*where)
+    q = select(activitypub.models.InboxObject).where(*where)
 
     inbox = (
         (
             await db_session.scalars(
                 q.options(
-                    joinedload(models.InboxObject.relates_to_inbox_object).options(
-                        joinedload(models.InboxObject.actor)
+                    joinedload(activitypub.models.InboxObject.relates_to_inbox_object).options(
+                        joinedload(activitypub.models.InboxObject.actor)
                     ),
-                    joinedload(models.InboxObject.relates_to_outbox_object).options(
+                    joinedload(activitypub.models.InboxObject.relates_to_outbox_object).options(
                         joinedload(
-                            models.OutboxObject.outbox_object_attachments
-                        ).options(joinedload(models.OutboxObjectAttachment.upload)),
+                            activitypub.models.OutboxObject.outbox_object_attachments
+                        ).options(joinedload(activitypub.models.OutboxObjectAttachment.upload)),
                     ),
-                    joinedload(models.InboxObject.actor),
+                    joinedload(activitypub.models.InboxObject.actor),
                 )
-                .order_by(models.InboxObject.ap_published_at.desc())
+                .order_by(activitypub.models.InboxObject.ap_published_at.desc())
                 .limit(20)
             )
         )
@@ -442,21 +442,21 @@ async def admin_direct_messages(
         (
             await db_session.execute(
                 select(
-                    models.InboxObject.ap_context,
-                    models.InboxObject.actor_id,
+                    activitypub.models.InboxObject.ap_context,
+                    activitypub.models.InboxObject.actor_id,
                     func.count(1).label("count"),
-                    func.max(models.InboxObject.ap_published_at).label(
+                    func.max(activitypub.models.InboxObject.ap_published_at).label(
                         "most_recent_date"
                     ),
                 )
                 .where(
-                    models.InboxObject.visibility == ap.VisibilityEnum.DIRECT,
-                    models.InboxObject.ap_context.is_not(None),
+                    activitypub.models.InboxObject.visibility == ap.VisibilityEnum.DIRECT,
+                    activitypub.models.InboxObject.ap_context.is_not(None),
                     # Skip transient object like poll relies
-                    models.InboxObject.is_transient.is_(False),
-                    models.InboxObject.is_deleted.is_(False),
+                    activitypub.models.InboxObject.is_transient.is_(False),
+                    activitypub.models.InboxObject.is_deleted.is_(False),
                 )
-                .group_by(models.InboxObject.ap_context, models.InboxObject.actor_id)
+                .group_by(activitypub.models.InboxObject.ap_context, activitypub.models.InboxObject.actor_id)
             )
         )
         .unique()
@@ -466,20 +466,20 @@ async def admin_direct_messages(
         (
             await db_session.execute(
                 select(
-                    models.OutboxObject.ap_context,
+                    activitypub.models.OutboxObject.ap_context,
                     func.count(1).label("count"),
-                    func.max(models.OutboxObject.ap_published_at).label(
+                    func.max(activitypub.models.OutboxObject.ap_published_at).label(
                         "most_recent_date"
                     ),
                 )
                 .where(
-                    models.OutboxObject.visibility == ap.VisibilityEnum.DIRECT,
-                    models.OutboxObject.ap_context.is_not(None),
+                    activitypub.models.OutboxObject.visibility == ap.VisibilityEnum.DIRECT,
+                    activitypub.models.OutboxObject.ap_context.is_not(None),
                     # Skip transient object like poll relies
-                    models.OutboxObject.is_transient.is_(False),
-                    models.OutboxObject.is_deleted.is_(False),
+                    activitypub.models.OutboxObject.is_transient.is_(False),
+                    activitypub.models.OutboxObject.is_deleted.is_(False),
                 )
-                .group_by(models.OutboxObject.ap_context)
+                .group_by(activitypub.models.OutboxObject.ap_context)
             )
         )
         .unique()
@@ -526,16 +526,16 @@ async def admin_direct_messages(
         if convo["most_recent_from_inbox"] > convo["most_recent_from_outbox"]:
             convos_with_last_from_inbox.append(
                 and_(
-                    models.InboxObject.ap_context == context,
-                    models.InboxObject.ap_published_at
+                    activitypub.models.InboxObject.ap_context == context,
+                    activitypub.models.InboxObject.ap_published_at
                     == convo["most_recent_from_inbox"],
                 )
             )
         else:
             convos_with_last_from_outbox.append(
                 and_(
-                    models.OutboxObject.ap_context == context,
-                    models.OutboxObject.ap_published_at
+                    activitypub.models.OutboxObject.ap_context == context,
+                    activitypub.models.OutboxObject.ap_published_at
                     == convo["most_recent_from_outbox"],
                 )
             )
@@ -543,10 +543,10 @@ async def admin_direct_messages(
         (
             (
                 await db_session.scalars(
-                    select(models.InboxObject)
+                    select(activitypub.models.InboxObject)
                     .where(or_(*convos_with_last_from_inbox))
                     .options(
-                        joinedload(models.InboxObject.actor),
+                        joinedload(activitypub.models.InboxObject.actor),
                     )
                 )
             )
@@ -560,12 +560,12 @@ async def admin_direct_messages(
         (
             (
                 await db_session.scalars(
-                    select(models.OutboxObject)
+                    select(activitypub.models.OutboxObject)
                     .where(or_(*convos_with_last_from_outbox))
                     .options(
                         joinedload(
-                            models.OutboxObject.outbox_object_attachments
-                        ).options(joinedload(models.OutboxObjectAttachment.upload)),
+                            activitypub.models.OutboxObject.outbox_object_attachments
+                        ).options(joinedload(activitypub.models.OutboxObjectAttachment.upload)),
                     )
                 )
             )
@@ -587,7 +587,7 @@ async def admin_direct_messages(
         actors = list(
             (
                 await db_session.execute(
-                    select(models.Actor).where(models.Actor.id.in_(convo["actor_ids"]))
+                    select(activitypub.models.Actor).where(activitypub.models.Actor.id.in_(convo["actor_ids"]))
                 )
             ).scalars()
         )
@@ -596,8 +596,8 @@ async def admin_direct_messages(
         if not actors and anybox_object.is_from_outbox:
             actors = (  # type: ignore
                 await db_session.execute(
-                    select(models.Actor).where(
-                        models.Actor.ap_id.in_(
+                    select(activitypub.models.Actor).where(
+                        activitypub.models.Actor.ap_id.in_(
                             mention["href"]
                             for mention in anybox_object.tags
                             if mention["type"] == "Mention"
@@ -625,37 +625,37 @@ async def admin_outbox(
     cursor: str | None = None,
 ) -> templates.TemplateResponse:
     where = [
-        models.OutboxObject.ap_type.not_in(["Accept", "Delete", "Update"]),
-        models.OutboxObject.is_deleted.is_(False),
-        models.OutboxObject.is_transient.is_(False),
+        activitypub.models.OutboxObject.ap_type.not_in(["Accept", "Delete", "Update"]),
+        activitypub.models.OutboxObject.is_deleted.is_(False),
+        activitypub.models.OutboxObject.is_transient.is_(False),
     ]
     if filter_by:
-        where.append(models.OutboxObject.ap_type == filter_by)
+        where.append(activitypub.models.OutboxObject.ap_type == filter_by)
     if cursor:
         where.append(
-            models.OutboxObject.ap_published_at < pagination.decode_cursor(cursor)
+            activitypub.models.OutboxObject.ap_published_at < pagination.decode_cursor(cursor)
         )
 
     page_size = 20
     remaining_count = await db_session.scalar(
-        select(func.count(models.OutboxObject.id)).where(*where)
+        select(func.count(activitypub.models.OutboxObject.id)).where(*where)
     )
-    q = select(models.OutboxObject).where(*where)
+    q = select(activitypub.models.OutboxObject).where(*where)
 
     outbox = (
         (
             await db_session.scalars(
                 q.options(
-                    joinedload(models.OutboxObject.relates_to_inbox_object).options(
-                        joinedload(models.InboxObject.actor),
+                    joinedload(activitypub.models.OutboxObject.relates_to_inbox_object).options(
+                        joinedload(activitypub.models.InboxObject.actor),
                     ),
-                    joinedload(models.OutboxObject.relates_to_outbox_object),
-                    joinedload(models.OutboxObject.relates_to_actor),
-                    joinedload(models.OutboxObject.outbox_object_attachments).options(
-                        joinedload(models.OutboxObjectAttachment.upload)
+                    joinedload(activitypub.models.OutboxObject.relates_to_outbox_object),
+                    joinedload(activitypub.models.OutboxObject.relates_to_actor),
+                    joinedload(activitypub.models.OutboxObject.outbox_object_attachments).options(
+                        joinedload(activitypub.models.OutboxObjectAttachment.upload)
                     ),
                 )
-                .order_by(models.OutboxObject.ap_published_at.desc())
+                .order_by(activitypub.models.OutboxObject.ap_published_at.desc())
                 .limit(page_size)
             )
         )
@@ -714,12 +714,12 @@ async def get_notifications(
                 .options(
                     joinedload(models.Notification.actor),
                     joinedload(models.Notification.inbox_object).options(
-                        joinedload(models.InboxObject.actor)
+                        joinedload(activitypub.models.InboxObject.actor)
                     ),
                     joinedload(models.Notification.outbox_object).options(
                         joinedload(
-                            models.OutboxObject.outbox_object_attachments
-                        ).options(joinedload(models.OutboxObjectAttachment.upload)),
+                            activitypub.models.OutboxObject.outbox_object_attachments
+                        ).options(joinedload(activitypub.models.OutboxObjectAttachment.upload)),
                     ),
                     joinedload(models.Notification.webmention),
                 )
@@ -804,7 +804,7 @@ async def admin_profile(
     # TODO: show featured/pinned
     actor = (
         await db_session.execute(
-            select(models.Actor).where(models.Actor.ap_id == actor_id)
+            select(activitypub.models.Actor).where(activitypub.models.Actor.ap_id == actor_id)
         )
     ).scalar_one_or_none()
     if not actor:
@@ -813,38 +813,38 @@ async def admin_profile(
     actors_metadata = await get_actors_metadata(db_session, [actor])
 
     where = [
-        models.InboxObject.is_deleted.is_(False),
-        models.InboxObject.actor_id == actor.id,
-        models.InboxObject.ap_type.in_(
+        activitypub.models.InboxObject.is_deleted.is_(False),
+        activitypub.models.InboxObject.actor_id == actor.id,
+        activitypub.models.InboxObject.ap_type.in_(
             ["Note", "Article", "Video", "Page", "Announce"]
         ),
     ]
     if cursor:
         decoded_cursor = pagination.decode_cursor(cursor)
-        where.append(models.InboxObject.ap_published_at < decoded_cursor)
+        where.append(activitypub.models.InboxObject.ap_published_at < decoded_cursor)
 
     page_size = 20
     remaining_count = await db_session.scalar(
-        select(func.count(models.InboxObject.id)).where(*where)
+        select(func.count(activitypub.models.InboxObject.id)).where(*where)
     )
 
     inbox_objects = (
         (
             await db_session.scalars(
-                select(models.InboxObject)
+                select(activitypub.models.InboxObject)
                 .where(*where)
                 .options(
-                    joinedload(models.InboxObject.relates_to_inbox_object).options(
-                        joinedload(models.InboxObject.actor)
+                    joinedload(activitypub.models.InboxObject.relates_to_inbox_object).options(
+                        joinedload(activitypub.models.InboxObject.actor)
                     ),
-                    joinedload(models.InboxObject.relates_to_outbox_object).options(
+                    joinedload(activitypub.models.InboxObject.relates_to_outbox_object).options(
                         joinedload(
-                            models.OutboxObject.outbox_object_attachments
-                        ).options(joinedload(models.OutboxObjectAttachment.upload)),
+                            activitypub.models.OutboxObject.outbox_object_attachments
+                        ).options(joinedload(activitypub.models.OutboxObjectAttachment.upload)),
                     ),
-                    joinedload(models.InboxObject.actor),
+                    joinedload(activitypub.models.InboxObject.actor),
                 )
-                .order_by(models.InboxObject.ap_published_at.desc())
+                .order_by(activitypub.models.InboxObject.ap_published_at.desc())
                 .limit(page_size)
             )
         )
@@ -1231,9 +1231,9 @@ async def admin_edit_text(
     maybe_object = (
         (
             await db_session.execute(
-                select(models.OutboxObject).where(
-                    models.OutboxObject.public_id == public_id,
-                    models.OutboxObject.is_deleted.is_(False),
+                select(activitypub.models.OutboxObject).where(
+                    activitypub.models.OutboxObject.public_id == public_id,
+                    activitypub.models.OutboxObject.is_deleted.is_(False),
                 )
             )
         )
@@ -1270,9 +1270,9 @@ async def admin_actions_edit_text(
     maybe_object = (
         (
             await db_session.execute(
-                select(models.OutboxObject).where(
-                    models.OutboxObject.public_id == public_id,
-                    models.OutboxObject.is_deleted.is_(False),
+                select(activitypub.models.OutboxObject).where(
+                    activitypub.models.OutboxObject.public_id == public_id,
+                    activitypub.models.OutboxObject.is_deleted.is_(False),
                 )
             )
         )

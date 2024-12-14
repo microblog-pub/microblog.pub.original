@@ -6,13 +6,13 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from app import activitypub as ap
+from activitypub import activitypub as ap
 from app import httpsig
 from app.database import AsyncSession
 from app.httpsig import _KEY_CACHE
 from app.httpsig import HTTPSigInfo
 from app.key import Key
-from tests import factories
+from activitypub.tests import factories
 
 _test_app = fastapi.FastAPI()
 

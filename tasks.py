@@ -103,7 +103,7 @@ def uvicorn(ctx):
 @task
 def process_outgoing_activities(ctx):
     # type: (Context) -> None
-    from app.outgoing_activities import loop
+    from activitypub.outgoing_activities import loop
 
     asyncio.run(loop())
 
@@ -111,7 +111,7 @@ def process_outgoing_activities(ctx):
 @task
 def process_incoming_activities(ctx):
     # type: (Context) -> None
-    from app.incoming_activities import loop
+    from activitypub.incoming_activities import loop
 
     asyncio.run(loop())
 
@@ -264,9 +264,9 @@ def move_to(ctx, moved_to):
 
     from loguru import logger
 
-    from app.actor import LOCAL_ACTOR
-    from app.actor import fetch_actor
-    from app.boxes import send_move
+    from activitypub.actor import LOCAL_ACTOR
+    from activitypub.actor import fetch_actor
+    from activitypub.boxes import send_move
     from app.database import async_session
     from app.source import _MENTION_REGEX
     from app.webfinger import get_actor_url
@@ -314,7 +314,7 @@ def self_destruct(ctx):
     # type: (Context) -> None
     from loguru import logger
 
-    from app.boxes import send_self_destruct
+    from activitypub.boxes import send_self_destruct
     from app.database import async_session
 
     logger.disable("app")
@@ -392,8 +392,8 @@ def import_mastodon_following_accounts(ctx, path):
     # type: (Context, str) -> None
     from loguru import logger
 
-    from app.boxes import _get_following
-    from app.boxes import _send_follow
+    from activitypub.boxes import _get_following
+    from activitypub.boxes import _send_follow
     from app.database import async_session
     from app.utils.mastodon import get_actor_urls_from_following_accounts_csv_file
 

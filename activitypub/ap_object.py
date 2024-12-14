@@ -8,10 +8,10 @@ import pydantic
 from bs4 import BeautifulSoup  # type: ignore
 from mistletoe import markdown  # type: ignore
 
-from app import activitypub as ap
-from app.actor import LOCAL_ACTOR
-from app.actor import Actor
-from app.actor import RemoteActor
+from activitypub import activitypub as ap
+from activitypub.actor import LOCAL_ACTOR
+from activitypub.actor import Actor
+from activitypub.actor import RemoteActor
 from app.config import ID
 from app.media import proxied_media_url
 from app.utils.datetime import now

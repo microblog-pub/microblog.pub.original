@@ -7,11 +7,11 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import RedirectResponse
 from loguru import logger
 
-from app import activitypub as ap
-from app.boxes import get_outbox_object_by_ap_id
-from app.boxes import send_create
-from app.boxes import send_delete
-from app.boxes import send_update
+from activitypub import activitypub as ap
+from activitypub.boxes import get_outbox_object_by_ap_id
+from activitypub.boxes import send_create
+from activitypub.boxes import send_delete
+from activitypub.boxes import send_update
 from app.database import AsyncSession
 from app.database import get_db_session
 from app.indieauth import AccessTokenInfo

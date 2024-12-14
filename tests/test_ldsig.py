@@ -4,11 +4,11 @@ import httpx
 import pytest
 from respx import MockRouter
 
-from app import activitypub as ap
+from activitypub import activitypub as ap
 from app import ldsig
 from app.database import AsyncSession
 from app.key import Key
-from tests import factories
+from activitypub.tests import factories
 
 _SAMPLE_CREATE = {
     "type": "Create",

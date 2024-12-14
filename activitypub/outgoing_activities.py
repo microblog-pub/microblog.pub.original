@@ -13,12 +13,13 @@ from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
-from app import activitypub as ap
+import activitypub.models
+from activitypub import activitypub as ap
 from app import config
 from app import ldsig
 from app import models
-from app.actor import LOCAL_ACTOR
-from app.actor import _actor_hash
+from activitypub.actor import LOCAL_ACTOR
+from activitypub.actor import _actor_hash
 from app.config import KEY_PATH
 from app.database import AsyncSession
 from app.key import Key
@@ -66,10 +67,10 @@ async def _send_actor_update_if_needed(
 
     logger.info("Will send an Update for the local actor")
 
-    from app.boxes import allocate_outbox_id
-    from app.boxes import compute_all_known_recipients
-    from app.boxes import outbox_object_id
-    from app.boxes import save_outbox_object
+    from activitypub.boxes import allocate_outbox_id
+    from activitypub.boxes import compute_all_known_recipients
+    from activitypub.boxes import outbox_object_id
+    from activitypub.boxes import save_outbox_object
 
     update_activity_id = allocate_outbox_id()
     update_activity = {
@@ -103,7 +104,7 @@ async def new_outgoing_activity(
     outbox_object_id: int | None = None,
     inbox_object_id: int | None = None,
     webmention_target: str | None = None,
-) -> models.OutgoingActivity:
+) -> activitypub.models.OutgoingActivity:
     if outbox_object_id is None and inbox_object_id is None:
         raise ValueError("Must reference at least one inbox/outbox activity")
     if webmention_target and outbox_object_id is None:
@@ -111,7 +112,7 @@ async def new_outgoing_activity(
     if outbox_object_id and inbox_object_id:
         raise ValueError("Cannot reference both inbox/outbox activities")
 
-    outgoing_activity = models.OutgoingActivity(
+    outgoing_activity = activitypub.models.OutgoingActivity(
         recipient=recipient,
         outbox_object_id=outbox_object_id,
         inbox_object_id=inbox_object_id,
@@ -145,7 +146,7 @@ def _exp_backoff(tries: int) -> datetime:
 
 
 def _set_next_try(
-    outgoing_activity: models.OutgoingActivity,
+    outgoing_activity: activitypub.models.OutgoingActivity,
     next_try: datetime | None = None,
 ) -> None:
     if not outgoing_activity.tries:
@@ -160,14 +161,14 @@ def _set_next_try(
 
 async def fetch_next_outgoing_activity(
     db_session: AsyncSession,
-) -> models.OutgoingActivity | None:
+) -> activitypub.models.OutgoingActivity | None:
     where = [
-        models.OutgoingActivity.next_try <= now(),
-        models.OutgoingActivity.is_errored.is_(False),
-        models.OutgoingActivity.is_sent.is_(False),
+        activitypub.models.OutgoingActivity.next_try <= now(),
+        activitypub.models.OutgoingActivity.is_errored.is_(False),
+        activitypub.models.OutgoingActivity.is_sent.is_(False),
     ]
     q_count = await db_session.scalar(
-        select(func.count(models.OutgoingActivity.id)).where(*where)
+        select(func.count(activitypub.models.OutgoingActivity.id)).where(*where)
     )
     if q_count > 0:
         logger.info(f"{q_count} outgoing activities ready to process")
@@ -177,14 +178,14 @@ async def fetch_next_outgoing_activity(
 
     next_activity = (
         await db_session.execute(
-            select(models.OutgoingActivity)
+            select(activitypub.models.OutgoingActivity)
             .where(*where)
             .limit(1)
             .options(
-                joinedload(models.OutgoingActivity.inbox_object),
-                joinedload(models.OutgoingActivity.outbox_object),
+                joinedload(activitypub.models.OutgoingActivity.inbox_object),
+                joinedload(activitypub.models.OutgoingActivity.outbox_object),
             )
-            .order_by(models.OutgoingActivity.next_try)
+            .order_by(activitypub.models.OutgoingActivity.next_try)
         )
     ).scalar_one()
     return next_activity
@@ -192,7 +193,7 @@ async def fetch_next_outgoing_activity(
 
 async def process_next_outgoing_activity(
     db_session: AsyncSession,
-    next_activity: models.OutgoingActivity,
+    next_activity: activitypub.models.OutgoingActivity,
 ) -> None:
     next_activity.tries = next_activity.tries + 1  # type: ignore
     next_activity.last_try = now()
@@ -269,18 +270,18 @@ async def process_next_outgoing_activity(
     return None
 
 
-class OutgoingActivityWorker(Worker[models.OutgoingActivity]):
+class OutgoingActivityWorker(Worker[activitypub.models.OutgoingActivity]):
     async def process_message(
         self,
         db_session: AsyncSession,
-        next_activity: models.OutgoingActivity,
+        next_activity: activitypub.models.OutgoingActivity,
     ) -> None:
         await process_next_outgoing_activity(db_session, next_activity)
 
     async def get_next_message(
         self,
         db_session: AsyncSession,
-    ) -> models.OutgoingActivity | None:
+    ) -> activitypub.models.OutgoingActivity | None:
         return await fetch_next_outgoing_activity(db_session)
 
     async def startup(self, db_session: AsyncSession) -> None:

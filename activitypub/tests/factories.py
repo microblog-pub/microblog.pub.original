@@ -6,11 +6,10 @@ from Crypto.PublicKey import RSA
 from dateutil.parser import isoparse
 from sqlalchemy import orm
 
-from app import activitypub as ap
-from app import actor
-from app import models
-from app.actor import RemoteActor
-from app.ap_object import RemoteObject
+import activitypub.models
+from activitypub import activitypub as ap, actor
+from activitypub.actor import RemoteActor
+from activitypub.ap_object import RemoteObject
 from app.database import SessionLocal
 from app.utils.datetime import now
 
@@ -37,7 +36,7 @@ def build_follow_activity(
 
 
 def build_delete_activity(
-    from_remote_actor: actor.RemoteActor | models.Actor,
+    from_remote_actor: actor.RemoteActor | activitypub.models.Actor,
     deleted_object_ap_id: str,
     outbox_public_id: str | None = None,
 ) -> ap.RawObject:
@@ -98,7 +97,7 @@ def build_move_activity(
 
 
 def build_note_object(
-    from_remote_actor: actor.RemoteActor | models.Actor,
+    from_remote_actor: actor.RemoteActor | activitypub.models.Actor,
     outbox_public_id: str | None = None,
     content: str = "Hello",
     to: list[str] | None = None,
@@ -191,7 +190,7 @@ class RemoteActorFactory(factory.Factory):
 
 class ActorFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta(BaseModelMeta):
-        model = models.Actor
+        model = activitypub.models.Actor
 
     # ap_actor
     # ap_id
@@ -208,7 +207,7 @@ class ActorFactory(factory.alchemy.SQLAlchemyModelFactory):
 
 class OutboxObjectFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta(BaseModelMeta):
-        model = models.OutboxObject
+        model = activitypub.models.OutboxObject
 
     # public_id
     # relates_to_inbox_object_id
@@ -231,7 +230,7 @@ class OutboxObjectFactory(factory.alchemy.SQLAlchemyModelFactory):
 
 class OutgoingActivityFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta(BaseModelMeta):
-        model = models.OutgoingActivity
+        model = activitypub.models.OutgoingActivity
 
     # recipient
     # outbox_object_id
@@ -239,13 +238,13 @@ class OutgoingActivityFactory(factory.alchemy.SQLAlchemyModelFactory):
 
 class InboxObjectFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta(BaseModelMeta):
-        model = models.InboxObject
+        model = activitypub.models.InboxObject
 
     @classmethod
     def from_remote_object(
         cls,
         ro: RemoteObject,
-        actor: models.Actor,
+        actor: activitypub.models.Actor,
         relates_to_inbox_object_id: int | None = None,
         relates_to_outbox_object_id: int | None = None,
     ):
@@ -272,9 +271,9 @@ class InboxObjectFactory(factory.alchemy.SQLAlchemyModelFactory):
 
 class FollowerFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta(BaseModelMeta):
-        model = models.Follower
+        model = activitypub.models.Follower
 
 
 class FollowingFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta(BaseModelMeta):
-        model = models.Following
+        model = activitypub.models.Following

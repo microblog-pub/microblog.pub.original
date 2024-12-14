@@ -18,12 +18,13 @@ from sqlalchemy import func
 from sqlalchemy import select
 from starlette.templating import _TemplateResponse as TemplateResponse
 
-from app import activitypub as ap
+import activitypub.models
+from activitypub import activitypub as ap
 from app import config
 from app import models
-from app.actor import LOCAL_ACTOR
-from app.ap_object import Attachment
-from app.ap_object import Object
+from activitypub.actor import LOCAL_ACTOR
+from activitypub.ap_object import Attachment
+from activitypub.ap_object import Object
 from app.config import BASE_URL
 from app.config import CUSTOM_FOOTER
 from app.config import DEBUG
@@ -114,19 +115,19 @@ async def render_template(
                 else 0
             ),
             "articles_count": await db_session.scalar(
-                select(func.count(models.OutboxObject.id)).where(
-                    models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
-                    models.OutboxObject.is_deleted.is_(False),
-                    models.OutboxObject.is_hidden_from_homepage.is_(False),
-                    models.OutboxObject.ap_type == "Article",
+                select(func.count(activitypub.models.OutboxObject.id)).where(
+                    activitypub.models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
+                    activitypub.models.OutboxObject.is_deleted.is_(False),
+                    activitypub.models.OutboxObject.is_hidden_from_homepage.is_(False),
+                    activitypub.models.OutboxObject.ap_type == "Article",
                 )
             ),
             "local_actor": LOCAL_ACTOR,
             "followers_count": await db_session.scalar(
-                select(func.count(models.Follower.id))
+                select(func.count(activitypub.models.Follower.id))
             ),
             "following_count": await db_session.scalar(
-                select(func.count(models.Following.id))
+                select(func.count(activitypub.models.Following.id))
             ),
             "actor_types": ap.ACTOR_TYPES,
             "custom_footer": CUSTOM_FOOTER,

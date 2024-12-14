@@ -27,7 +27,7 @@ def upgrade() -> None:
     # ### end Alembic commands ###
 
     # Backfill the slug for existing articles
-    from app.models import OutboxObject
+    from activitypub.models import OutboxObject
     from app.utils.text import slugify
     sess = Session(op.get_bind())
     articles = sess.execute(select(OutboxObject).where(

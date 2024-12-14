@@ -2,7 +2,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import activitypub as ap
+import activitypub.models
+from activitypub import activitypub as ap
 from app import models
 from app.config import generate_csrf_token
 from tests.utils import generate_admin_session_cookies
@@ -37,7 +38,7 @@ def test_tags__note_with_tag(db: Session, client: TestClient) -> None:
     assert response.status_code == 302
 
     # And the Follow activity was created in the outbox
-    outbox_object = db.execute(select(models.OutboxObject)).scalar_one()
+    outbox_object = db.execute(select(activitypub.models.OutboxObject)).scalar_one()
     assert outbox_object.ap_type == "Note"
     assert len(outbox_object.tags) == 1
     emoji_tag = outbox_object.tags[0]

@@ -5,10 +5,10 @@ from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import models
-from app.actor import fetch_actor
-from app.database import AsyncSession
-from tests import factories
+import activitypub.models
+from activitypub.actor import fetch_actor
+from sqlalchemy.ext.asyncio import AsyncSession
+from activitypub.tests import factories
 
 
 @pytest.mark.asyncio
@@ -31,7 +31,7 @@ async def test_fetch_actor(async_db_session: AsyncSession, respx_mock) -> None:
     # Then it has been fetched and saved in DB
     assert respx.calls.call_count == 2
     assert (
-        await async_db_session.execute(select(models.Actor))
+        await async_db_session.execute(select(activitypub.models.Actor))
     ).scalar_one().ap_id == saved_actor.ap_id
 
     # When fetching it a second time
@@ -40,9 +40,10 @@ async def test_fetch_actor(async_db_session: AsyncSession, respx_mock) -> None:
     # Then it's read from the DB
     assert actor_from_db.ap_id == ra.ap_id
     assert (
-        await async_db_session.execute(select(func.count(models.Actor.id)))
+        await async_db_session.execute(select(func.count(activitypub.models.Actor.id)))
     ).scalar_one() == 1
     assert respx.calls.call_count == 2
+    await async_db_session.close()
 
 
 def test_sqlalchemy_factory(db: Session) -> None:
@@ -56,4 +57,5 @@ def test_sqlalchemy_factory(db: Session) -> None:
         ap_actor=ra.ap_actor,
         ap_id=ra.ap_id,
     )
-    assert actor_in_db.id == db.execute(select(models.Actor)).scalar_one().id
+    assert actor_in_db.id == db.execute(select(activitypub.models.Actor)).scalar_one().id
+    db.close()

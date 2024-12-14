@@ -3,7 +3,7 @@ import typing
 import starlette
 from fastapi.testclient import TestClient
 
-from app import activitypub as ap
+from activitypub import activitypub as ap
 from app.config import generate_csrf_token
 from app.main import app
 from tests.utils import generate_admin_session_cookies

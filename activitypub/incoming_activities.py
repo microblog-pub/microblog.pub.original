@@ -7,11 +7,12 @@ from loguru import logger
 from sqlalchemy import func
 from sqlalchemy import select
 
-from app import activitypub as ap
+import activitypub.models
+from activitypub import activitypub as ap
 from app import httpsig
 from app import ldsig
 from app import models
-from app.boxes import save_to_inbox
+from activitypub.boxes import save_to_inbox
 from app.database import AsyncSession
 from app.utils.datetime import now
 from app.utils.workers import Worker
@@ -23,7 +24,7 @@ async def new_ap_incoming_activity(
     db_session: AsyncSession,
     httpsig_info: httpsig.HTTPSigInfo,
     raw_object: ap.RawObject,
-) -> models.IncomingActivity | None:
+) -> activitypub.models.IncomingActivity | None:
     ap_id: str
     if "id" not in raw_object or ap.as_list(raw_object["type"])[0] in ap.ACTOR_TYPES:
         if "@context" not in raw_object:
@@ -37,7 +38,7 @@ async def new_ap_incoming_activity(
 
     # TODO(ts): dedup first
 
-    incoming_activity = models.IncomingActivity(
+    incoming_activity = activitypub.models.IncomingActivity(
         sent_by_ap_actor_id=httpsig_info.signed_by_ap_actor_id,
         ap_id=ap_id,
         ap_object=raw_object,
@@ -54,7 +55,7 @@ def _exp_backoff(tries: int) -> datetime:
 
 
 def _set_next_try(
-    outgoing_activity: models.IncomingActivity,
+    outgoing_activity: activitypub.models.IncomingActivity,
     next_try: datetime | None = None,
 ) -> None:
     if not outgoing_activity.tries:
@@ -69,14 +70,14 @@ def _set_next_try(
 
 async def fetch_next_incoming_activity(
     db_session: AsyncSession,
-) -> models.IncomingActivity | None:
+) -> activitypub.models.IncomingActivity | None:
     where = [
-        models.IncomingActivity.next_try <= now(),
-        models.IncomingActivity.is_errored.is_(False),
-        models.IncomingActivity.is_processed.is_(False),
+        activitypub.models.IncomingActivity.next_try <= now(),
+        activitypub.models.IncomingActivity.is_errored.is_(False),
+        activitypub.models.IncomingActivity.is_processed.is_(False),
     ]
     q_count = await db_session.scalar(
-        select(func.count(models.IncomingActivity.id)).where(*where)
+        select(func.count(activitypub.models.IncomingActivity.id)).where(*where)
     )
     if q_count > 0:
         logger.info(f"{q_count} incoming activities ready to process")
@@ -86,10 +87,10 @@ async def fetch_next_incoming_activity(
 
     next_activity = (
         await db_session.execute(
-            select(models.IncomingActivity)
+            select(activitypub.models.IncomingActivity)
             .where(*where)
             .limit(1)
-            .order_by(models.IncomingActivity.next_try.asc())
+            .order_by(activitypub.models.IncomingActivity.next_try.asc())
         )
     ).scalar_one()
 
@@ -98,7 +99,7 @@ async def fetch_next_incoming_activity(
 
 async def process_next_incoming_activity(
     db_session: AsyncSession,
-    next_activity: models.IncomingActivity,
+    next_activity: activitypub.models.IncomingActivity,
 ) -> None:
     logger.info(
         f"incoming_activity={next_activity.ap_object}/"
@@ -142,18 +143,18 @@ async def process_next_incoming_activity(
     return None
 
 
-class IncomingActivityWorker(Worker[models.IncomingActivity]):
+class IncomingActivityWorker(Worker[activitypub.models.IncomingActivity]):
     async def process_message(
         self,
         db_session: AsyncSession,
-        next_activity: models.IncomingActivity,
+        next_activity: activitypub.models.IncomingActivity,
     ) -> None:
         await process_next_incoming_activity(db_session, next_activity)
 
     async def get_next_message(
         self,
         db_session: AsyncSession,
-    ) -> models.IncomingActivity | None:
+    ) -> activitypub.models.IncomingActivity | None:
         return await fetch_next_incoming_activity(db_session)
 
 

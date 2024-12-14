@@ -5,10 +5,10 @@ from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import activitypub as ap
-from app import models
-from app.ap_object import RemoteObject
-from tests import factories
+import activitypub.models
+from activitypub import activitypub as ap
+from activitypub.ap_object import RemoteObject
+from activitypub.tests import factories
 from tests.utils import mock_httpsig_checker
 from tests.utils import run_process_next_incoming_activity
 from tests.utils import setup_remote_actor
@@ -47,7 +47,7 @@ def test_inbox__incoming_delete_for_unknown_actor(
     assert response.status_code == 202
 
     # And no incoming activity was created
-    assert db.scalar(select(func.count(models.IncomingActivity.id))) == 0
+    assert db.scalar(select(func.count(activitypub.models.IncomingActivity.id))) == 0
 
 
 def test_inbox__incoming_delete_for_known_actor(
@@ -90,19 +90,19 @@ def test_inbox__incoming_delete_for_known_actor(
     # Then every inbox object from the actor was deleted
     assert (
         db.scalar(
-            select(func.count(models.InboxObject.id)).where(
-                models.InboxObject.actor_id == actor.id,
-                models.InboxObject.is_deleted.is_(False),
+            select(func.count(activitypub.models.InboxObject.id)).where(
+                activitypub.models.InboxObject.actor_id == actor.id,
+                activitypub.models.InboxObject.is_deleted.is_(False),
             )
         )
         == 0
     )
 
     # And the following actor was deleted
-    assert db.scalar(select(func.count(models.Following.id))) == 0
+    assert db.scalar(select(func.count(activitypub.models.Following.id))) == 0
 
     # And the follower actor was deleted too
-    assert db.scalar(select(func.count(models.Follower.id))) == 0
+    assert db.scalar(select(func.count(activitypub.models.Follower.id))) == 0
 
     # And the actor was marked in deleted
     db.refresh(actor)

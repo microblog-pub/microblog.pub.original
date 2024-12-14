@@ -8,7 +8,8 @@ from PIL import Image
 from PIL import ImageOps
 from sqlalchemy import select
 
-from app import activitypub as ap
+import activitypub.models
+from activitypub import activitypub as ap
 from app import models
 from app.config import BASE_URL
 from app.config import ROOT_DIR
@@ -17,7 +18,7 @@ from app.database import AsyncSession
 UPLOAD_DIR = ROOT_DIR / "data" / "uploads"
 
 
-async def save_upload(db_session: AsyncSession, f: UploadFile) -> models.Upload | None:
+async def save_upload(db_session: AsyncSession, f: UploadFile) -> activitypub.models.Upload | None:
     # Compute the hash
     h = hashlib.blake2b(digest_size=32)
     while True:
@@ -31,7 +32,7 @@ async def save_upload(db_session: AsyncSession, f: UploadFile) -> models.Upload 
 
     existing_upload = (
         await db_session.execute(
-            select(models.Upload).where(models.Upload.content_hash == content_hash)
+            select(activitypub.models.Upload).where(activitypub.models.Upload.content_hash == content_hash)
         )
     ).scalar_one_or_none()
     if existing_upload:
@@ -90,7 +91,7 @@ async def save_upload(db_session: AsyncSession, f: UploadFile) -> models.Upload 
                         break
                     dest.write(buf)
 
-        new_upload = models.Upload(
+        new_upload = activitypub.models.Upload(
             content_type=f.content_type,
             content_hash=content_hash,
             has_thumbnail=has_thumbnail,
@@ -107,7 +108,7 @@ async def save_upload(db_session: AsyncSession, f: UploadFile) -> models.Upload 
 
 
 def upload_to_attachment(
-    upload: models.Upload,
+    upload: activitypub.models.Upload,
     filename: str,
     alt_text: str | None,
 ) -> ap.RawObject:

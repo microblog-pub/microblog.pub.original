@@ -18,7 +18,7 @@ from app.source import hashtagify
 from app.utils.url import check_url
 
 if TYPE_CHECKING:
-    from app.actor import Actor
+    from activitypub.actor import Actor
 
 RawObject = dict[str, Any]
 AS_CTX = "https://www.w3.org/ns/activitystreams"

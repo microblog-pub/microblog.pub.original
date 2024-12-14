@@ -17,17 +17,18 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
-from app import activitypub as ap
+import activitypub.models
+from activitypub import activitypub as ap
 from app import config
 from app import ldsig
 from app import models
-from app.actor import LOCAL_ACTOR
-from app.actor import Actor
-from app.actor import RemoteActor
-from app.actor import fetch_actor
-from app.actor import save_actor
-from app.actor import update_actor_if_needed
-from app.ap_object import RemoteObject
+from activitypub.actor import LOCAL_ACTOR
+from activitypub.actor import Actor
+from activitypub.actor import RemoteActor
+from activitypub.actor import fetch_actor
+from activitypub.actor import save_actor
+from activitypub.actor import update_actor_if_needed
+from activitypub.ap_object import RemoteObject
 from app.config import BASE_URL
 from app.config import ID
 from app.config import MANUALLY_APPROVES_FOLLOWERS
@@ -35,7 +36,7 @@ from app.config import set_moved_to
 from app.config import stream_visibility_callback
 from app.customization import ObjectInfo
 from app.database import AsyncSession
-from app.outgoing_activities import new_outgoing_activity
+from activitypub.outgoing_activities import new_outgoing_activity
 from app.source import dedup_tags
 from app.source import markdownify
 from app.uploads import upload_to_attachment
@@ -48,7 +49,7 @@ from app.utils.facepile import WebmentionReply
 from app.utils.text import slugify
 from app.utils.url import is_hostname_blocked
 
-AnyboxObject = models.InboxObject | models.OutboxObject
+AnyboxObject = activitypub.models.InboxObject | activitypub.models.OutboxObject
 
 
 def is_notification_enabled(notification_type: models.NotificationType) -> bool:
@@ -81,10 +82,10 @@ async def save_outbox_object(
     is_transient: bool = False,
     conversation: str | None = None,
     slug: str | None = None,
-) -> models.OutboxObject:
+) -> activitypub.models.OutboxObject:
     ro = await RemoteObject.from_raw_object(raw_object)
 
-    outbox_object = models.OutboxObject(
+    outbox_object = activitypub.models.OutboxObject(
         public_id=public_id,
         ap_type=ro.ap_type,
         ap_id=ro.ap_id,
@@ -114,9 +115,9 @@ async def send_unblock(db_session: AsyncSession, ap_actor_id: str) -> None:
 
     block_activity = (
         await db_session.scalars(
-            select(models.OutboxObject).where(
-                models.OutboxObject.activity_object_ap_id == actor.ap_id,
-                models.OutboxObject.is_deleted.is_(False),
+            select(activitypub.models.OutboxObject).where(
+                activitypub.models.OutboxObject.activity_object_ap_id == actor.ap_id,
+                activitypub.models.OutboxObject.is_deleted.is_(False),
             )
         )
     ).one_or_none()
@@ -136,10 +137,10 @@ async def send_block(db_session: AsyncSession, ap_actor_id: str) -> None:
     # 1. Unfollow the actor
     following = (
         await db_session.scalars(
-            select(models.Following)
-            .options(joinedload(models.Following.outbox_object))
+            select(activitypub.models.Following)
+            .options(joinedload(activitypub.models.Following.outbox_object))
             .where(
-                models.Following.ap_actor_id == actor.ap_id,
+                activitypub.models.Following.ap_actor_id == actor.ap_id,
             )
         )
     ).one_or_none()
@@ -149,10 +150,10 @@ async def send_block(db_session: AsyncSession, ap_actor_id: str) -> None:
     # 2. If the blocked actor is a follower, reject the follow request
     follower = (
         await db_session.scalars(
-            select(models.Follower)
-            .options(joinedload(models.Follower.inbox_object))
+            select(activitypub.models.Follower)
+            .options(joinedload(activitypub.models.Follower.inbox_object))
             .where(
-                models.Follower.ap_actor_id == actor.ap_id,
+                activitypub.models.Follower.ap_actor_id == actor.ap_id,
             )
         )
     ).one_or_none()
@@ -409,8 +410,8 @@ async def _send_undo(db_session: AsyncSession, ap_object_id: str) -> None:
         )
         # Also remove the follow from the following collection
         await db_session.execute(
-            delete(models.Following).where(
-                models.Following.ap_actor_id == followed_actor.ap_id
+            delete(activitypub.models.Following).where(
+                activitypub.models.Following.ap_actor_id == followed_actor.ap_id
             )
         )
     elif outbox_object_to_undo.ap_type == "Like":
@@ -584,7 +585,7 @@ async def send_create(
     db_session: AsyncSession,
     ap_type: str,
     source: str,
-    uploads: list[tuple[models.Upload, str, str | None]],
+    uploads: list[tuple[activitypub.models.Upload, str, str | None]],
     in_reply_to: str | None,
     visibility: ap.VisibilityEnum,
     content_warning: str | None = None,
@@ -593,7 +594,7 @@ async def send_create(
     poll_answers: list[str] | None = None,
     poll_duration_in_minutes: int | None = None,
     name: str | None = None,
-) -> tuple[str, models.OutboxObject]:
+) -> tuple[str, activitypub.models.OutboxObject]:
     note_id = allocate_outbox_id()
     published = now().replace(microsecond=0).isoformat().replace("+00:00", "Z")
     context = f"{ID}/contexts/" + uuid.uuid4().hex
@@ -708,14 +709,14 @@ async def send_create(
 
     for tag in tags:
         if tag["type"] == "Hashtag":
-            tagged_object = models.TaggedOutboxObject(
+            tagged_object = activitypub.models.TaggedOutboxObject(
                 tag=tag["name"][1:].lower(),
                 outbox_object_id=outbox_object.id,
             )
             db_session.add(tagged_object)
 
     for upload, filename, alt in uploads:
-        outbox_object_attachment = models.OutboxObjectAttachment(
+        outbox_object_attachment = activitypub.models.OutboxObjectAttachment(
             filename=filename,
             alt=alt,
             outbox_object_id=outbox_object.id,
@@ -751,17 +752,17 @@ async def send_create(
         )
         if in_reply_to_object.is_from_outbox:
             await db_session.execute(
-                update(models.OutboxObject)
+                update(activitypub.models.OutboxObject)
                 .where(
-                    models.OutboxObject.ap_id == in_reply_to_object.ap_id,
+                    activitypub.models.OutboxObject.ap_id == in_reply_to_object.ap_id,
                 )
                 .values(replies_count=new_replies_count)
             )
         elif in_reply_to_object.is_from_inbox:
             await db_session.execute(
-                update(models.InboxObject)
+                update(activitypub.models.InboxObject)
                 .where(
-                    models.InboxObject.ap_id == in_reply_to_object.ap_id,
+                    activitypub.models.InboxObject.ap_id == in_reply_to_object.ap_id,
                 )
                 .values(replies_count=new_replies_count)
             )
@@ -877,13 +878,13 @@ async def send_update(
     outbox_object.revisions = revisions
 
     await db_session.execute(
-        delete(models.TaggedOutboxObject).where(
-            models.TaggedOutboxObject.outbox_object_id == outbox_object.id
+        delete(activitypub.models.TaggedOutboxObject).where(
+            activitypub.models.TaggedOutboxObject.outbox_object_id == outbox_object.id
         )
     )
     for tag in tags:
         if tag["type"] == "Hashtag":
-            tagged_object = models.TaggedOutboxObject(
+            tagged_object = activitypub.models.TaggedOutboxObject(
                 tag=tag["name"][1:].lower(),
                 outbox_object_id=outbox_object.id,
             )
@@ -937,7 +938,7 @@ async def _compute_recipients(
         # Is it a known actor?
         known_actor = (
             await db_session.execute(
-                select(models.Actor).where(models.Actor.ap_id == r)
+                select(activitypub.models.Actor).where(activitypub.models.Actor.ap_id == r)
             )
         ).scalar_one_or_none()  # type: ignore
         if known_actor:
@@ -963,17 +964,17 @@ async def compute_all_known_recipients(db_session: AsyncSession) -> set[str]:
         actor.shared_inbox_url or actor.inbox_url
         for actor in (
             await db_session.scalars(
-                select(models.Actor).where(models.Actor.is_deleted.is_(False))
+                select(activitypub.models.Actor).where(activitypub.models.Actor.is_deleted.is_(False))
             )
         ).all()
     }
 
 
-async def _get_following(db_session: AsyncSession) -> list[models.Following]:
+async def _get_following(db_session: AsyncSession) -> list[activitypub.models.Following]:
     return (
         (
             await db_session.scalars(
-                select(models.Following).options(joinedload(models.Following.actor))
+                select(activitypub.models.Following).options(joinedload(activitypub.models.Following.actor))
             )
         )
         .unique()
@@ -981,11 +982,11 @@ async def _get_following(db_session: AsyncSession) -> list[models.Following]:
     )
 
 
-async def _get_followers(db_session: AsyncSession) -> list[models.Follower]:
+async def _get_followers(db_session: AsyncSession) -> list[activitypub.models.Follower]:
     return (
         (
             await db_session.scalars(
-                select(models.Follower).options(joinedload(models.Follower.actor))
+                select(activitypub.models.Follower).options(joinedload(activitypub.models.Follower.actor))
             )
         )
         .unique()
@@ -995,7 +996,7 @@ async def _get_followers(db_session: AsyncSession) -> list[models.Follower]:
 
 async def _get_followers_recipients(
     db_session: AsyncSession,
-    skip_actors: list[models.Actor] | None = None,
+    skip_actors: list[activitypub.models.Actor] | None = None,
 ) -> set[str]:
     """Returns all the recipients from the local follower collection."""
     actor_ap_ids_to_skip = []
@@ -1019,7 +1020,7 @@ async def get_notification_by_id(
             .where(models.Notification.id == notification_id)
             .options(
                 joinedload(models.Notification.inbox_object).options(
-                    joinedload(models.InboxObject.actor)
+                    joinedload(activitypub.models.InboxObject.actor)
                 ),
             )
         )
@@ -1028,15 +1029,15 @@ async def get_notification_by_id(
 
 async def get_inbox_object_by_ap_id(
     db_session: AsyncSession, ap_id: str
-) -> models.InboxObject | None:
+) -> activitypub.models.InboxObject | None:
     return (
         await db_session.execute(
-            select(models.InboxObject)
-            .where(models.InboxObject.ap_id == ap_id)
+            select(activitypub.models.InboxObject)
+            .where(activitypub.models.InboxObject.ap_id == ap_id)
             .options(
-                joinedload(models.InboxObject.actor),
-                joinedload(models.InboxObject.relates_to_inbox_object),
-                joinedload(models.InboxObject.relates_to_outbox_object),
+                joinedload(activitypub.models.InboxObject.actor),
+                joinedload(activitypub.models.InboxObject.relates_to_inbox_object),
+                joinedload(activitypub.models.InboxObject.relates_to_outbox_object),
             )
         )
     ).scalar_one_or_none()  # type: ignore
@@ -1044,18 +1045,18 @@ async def get_inbox_object_by_ap_id(
 
 async def get_inbox_delete_for_activity_object_ap_id(
     db_session: AsyncSession, activity_object_ap_id: str
-) -> models.InboxObject | None:
+) -> activitypub.models.InboxObject | None:
     return (
         await db_session.execute(
-            select(models.InboxObject)
+            select(activitypub.models.InboxObject)
             .where(
-                models.InboxObject.ap_type == "Delete",
-                models.InboxObject.activity_object_ap_id == activity_object_ap_id,
+                activitypub.models.InboxObject.ap_type == "Delete",
+                activitypub.models.InboxObject.activity_object_ap_id == activity_object_ap_id,
             )
             .options(
-                joinedload(models.InboxObject.actor),
-                joinedload(models.InboxObject.relates_to_inbox_object),
-                joinedload(models.InboxObject.relates_to_outbox_object),
+                joinedload(activitypub.models.InboxObject.actor),
+                joinedload(activitypub.models.InboxObject.relates_to_inbox_object),
+                joinedload(activitypub.models.InboxObject.relates_to_outbox_object),
             )
         )
     ).scalar_one_or_none()  # type: ignore
@@ -1063,23 +1064,23 @@ async def get_inbox_delete_for_activity_object_ap_id(
 
 async def get_outbox_object_by_ap_id(
     db_session: AsyncSession, ap_id: str
-) -> models.OutboxObject | None:
+) -> activitypub.models.OutboxObject | None:
     return (
         (
             await db_session.execute(
-                select(models.OutboxObject)
-                .where(models.OutboxObject.ap_id == ap_id)
+                select(activitypub.models.OutboxObject)
+                .where(activitypub.models.OutboxObject.ap_id == ap_id)
                 .options(
-                    joinedload(models.OutboxObject.outbox_object_attachments).options(
-                        joinedload(models.OutboxObjectAttachment.upload)
+                    joinedload(activitypub.models.OutboxObject.outbox_object_attachments).options(
+                        joinedload(activitypub.models.OutboxObjectAttachment.upload)
                     ),
-                    joinedload(models.OutboxObject.relates_to_inbox_object).options(
-                        joinedload(models.InboxObject.actor),
+                    joinedload(activitypub.models.OutboxObject.relates_to_inbox_object).options(
+                        joinedload(activitypub.models.InboxObject.actor),
                     ),
-                    joinedload(models.OutboxObject.relates_to_outbox_object).options(
+                    joinedload(activitypub.models.OutboxObject.relates_to_outbox_object).options(
                         joinedload(
-                            models.OutboxObject.outbox_object_attachments
-                        ).options(joinedload(models.OutboxObjectAttachment.upload)),
+                            activitypub.models.OutboxObject.outbox_object_attachments
+                        ).options(joinedload(activitypub.models.OutboxObjectAttachment.upload)),
                     ),
                 )
             )
@@ -1093,20 +1094,20 @@ async def get_outbox_object_by_slug_and_short_id(
     db_session: AsyncSession,
     slug: str,
     short_id: str,
-) -> models.OutboxObject | None:
+) -> activitypub.models.OutboxObject | None:
     return (
         (
             await db_session.execute(
-                select(models.OutboxObject)
+                select(activitypub.models.OutboxObject)
                 .options(
-                    joinedload(models.OutboxObject.outbox_object_attachments).options(
-                        joinedload(models.OutboxObjectAttachment.upload)
+                    joinedload(activitypub.models.OutboxObject.outbox_object_attachments).options(
+                        joinedload(activitypub.models.OutboxObjectAttachment.upload)
                     )
                 )
                 .where(
-                    models.OutboxObject.public_id.like(f"{short_id}%"),
-                    models.OutboxObject.slug == slug,
-                    models.OutboxObject.is_deleted.is_(False),
+                    activitypub.models.OutboxObject.public_id.like(f"{short_id}%"),
+                    activitypub.models.OutboxObject.slug == slug,
+                    activitypub.models.OutboxObject.is_deleted.is_(False),
                 )
             )
         )
@@ -1140,12 +1141,12 @@ async def get_webmention_by_id(
 
 async def _handle_delete_activity(
     db_session: AsyncSession,
-    from_actor: models.Actor,
-    delete_activity: models.InboxObject,
-    relates_to_inbox_object: models.InboxObject | None,
-    forwarded_by_actor: models.Actor | None,
+    from_actor: activitypub.models.Actor,
+    delete_activity: activitypub.models.InboxObject,
+    relates_to_inbox_object: activitypub.models.InboxObject | None,
+    forwarded_by_actor: activitypub.models.Actor | None,
 ) -> None:
-    ap_object_to_delete: models.InboxObject | models.Actor | None = None
+    ap_object_to_delete: activitypub.models.InboxObject | activitypub.models.Actor | None = None
     if relates_to_inbox_object:
         ap_object_to_delete = relates_to_inbox_object
     elif delete_activity.activity_object_ap_id:
@@ -1167,7 +1168,7 @@ async def _handle_delete_activity(
         )
         return
 
-    if isinstance(ap_object_to_delete, models.InboxObject):
+    if isinstance(ap_object_to_delete, activitypub.models.InboxObject):
         if from_actor.ap_id != ap_object_to_delete.actor.ap_id:
             logger.warning(
                 "Actor mismatch between the activity and the object: "
@@ -1185,7 +1186,7 @@ async def _handle_delete_activity(
             forwarded_by_actor,
         )
         ap_object_to_delete.is_deleted = True
-    elif isinstance(ap_object_to_delete, models.Actor):
+    elif isinstance(ap_object_to_delete, activitypub.models.Actor):
         if from_actor.ap_id != ap_object_to_delete.ap_id:
             logger.warning(
                 "Actor mismatch between the activity and the object: "
@@ -1196,8 +1197,8 @@ async def _handle_delete_activity(
         logger.info(f"Deleting actor {ap_object_to_delete.ap_id}")
         follower = (
             await db_session.scalars(
-                select(models.Follower).where(
-                    models.Follower.ap_actor_id == ap_object_to_delete.ap_id,
+                select(activitypub.models.Follower).where(
+                    activitypub.models.Follower.ap_actor_id == ap_object_to_delete.ap_id,
                 )
             )
         ).one_or_none()
@@ -1208,11 +1209,11 @@ async def _handle_delete_activity(
             # Also mark Follow activities for this actor as deleted
             follow_activities = (
                 await db_session.scalars(
-                    select(models.OutboxObject).where(
-                        models.OutboxObject.ap_type == "Follow",
-                        models.OutboxObject.relates_to_actor_id
+                    select(activitypub.models.OutboxObject).where(
+                        activitypub.models.OutboxObject.ap_type == "Follow",
+                        activitypub.models.OutboxObject.relates_to_actor_id
                         == ap_object_to_delete.id,
-                        models.OutboxObject.is_deleted.is_(False),
+                        activitypub.models.OutboxObject.is_deleted.is_(False),
                     )
                 )
             ).all()
@@ -1224,8 +1225,8 @@ async def _handle_delete_activity(
 
         following = (
             await db_session.scalars(
-                select(models.Following).where(
-                    models.Following.ap_actor_id == ap_object_to_delete.ap_id,
+                select(activitypub.models.Following).where(
+                    activitypub.models.Following.ap_actor_id == ap_object_to_delete.ap_id,
                 )
             )
         ).one_or_none()
@@ -1238,9 +1239,9 @@ async def _handle_delete_activity(
 
         inbox_objects = (
             await db_session.scalars(
-                select(models.InboxObject).where(
-                    models.InboxObject.actor_id == ap_object_to_delete.id,
-                    models.InboxObject.is_deleted.is_(False),
+                select(activitypub.models.InboxObject).where(
+                    activitypub.models.InboxObject.actor_id == ap_object_to_delete.id,
+                    activitypub.models.InboxObject.is_deleted.is_(False),
                 )
             )
         ).all()
@@ -1265,18 +1266,18 @@ async def _get_replies_count(
 ) -> int:
     return (
         await db_session.scalar(
-            select(func.count(models.InboxObject.id)).where(
-                func.json_extract(models.InboxObject.ap_object, "$.inReplyTo")
+            select(func.count(activitypub.models.InboxObject.id)).where(
+                func.json_extract(activitypub.models.InboxObject.ap_object, "$.inReplyTo")
                 == replied_object_ap_id,
-                models.InboxObject.is_deleted.is_(False),
+                activitypub.models.InboxObject.is_deleted.is_(False),
             )
         )
     ) + (
         await db_session.scalar(
-            select(func.count(models.OutboxObject.id)).where(
-                func.json_extract(models.OutboxObject.ap_object, "$.inReplyTo")
+            select(func.count(activitypub.models.OutboxObject.id)).where(
+                func.json_extract(activitypub.models.OutboxObject.ap_object, "$.inReplyTo")
                 == replied_object_ap_id,
-                models.OutboxObject.is_deleted.is_(False),
+                activitypub.models.OutboxObject.is_deleted.is_(False),
             )
         )
     )
@@ -1284,7 +1285,7 @@ async def _get_replies_count(
 
 async def _get_outbox_replies_count(
     db_session: AsyncSession,
-    outbox_object: models.OutboxObject,
+    outbox_object: activitypub.models.OutboxObject,
 ) -> int:
     return (await _get_replies_count(db_session, outbox_object.ap_id)) + (
         await db_session.scalar(
@@ -1299,14 +1300,14 @@ async def _get_outbox_replies_count(
 
 async def _get_outbox_likes_count(
     db_session: AsyncSession,
-    outbox_object: models.OutboxObject,
+    outbox_object: activitypub.models.OutboxObject,
 ) -> int:
     return (
         await db_session.scalar(
-            select(func.count(models.InboxObject.id)).where(
-                models.InboxObject.ap_type == "Like",
-                models.InboxObject.relates_to_outbox_object_id == outbox_object.id,
-                models.InboxObject.is_deleted.is_(False),
+            select(func.count(activitypub.models.InboxObject.id)).where(
+                activitypub.models.InboxObject.ap_type == "Like",
+                activitypub.models.InboxObject.relates_to_outbox_object_id == outbox_object.id,
+                activitypub.models.InboxObject.is_deleted.is_(False),
             )
         )
     ) + (
@@ -1322,14 +1323,14 @@ async def _get_outbox_likes_count(
 
 async def _get_outbox_announces_count(
     db_session: AsyncSession,
-    outbox_object: models.OutboxObject,
+    outbox_object: activitypub.models.OutboxObject,
 ) -> int:
     return (
         await db_session.scalar(
-            select(func.count(models.InboxObject.id)).where(
-                models.InboxObject.ap_type == "Announce",
-                models.InboxObject.relates_to_outbox_object_id == outbox_object.id,
-                models.InboxObject.is_deleted.is_(False),
+            select(func.count(activitypub.models.InboxObject.id)).where(
+                activitypub.models.InboxObject.ap_type == "Announce",
+                activitypub.models.InboxObject.relates_to_outbox_object_id == outbox_object.id,
+                activitypub.models.InboxObject.is_deleted.is_(False),
             )
         )
     ) + (
@@ -1345,9 +1346,9 @@ async def _get_outbox_announces_count(
 
 async def _revert_side_effect_for_deleted_object(
     db_session: AsyncSession,
-    delete_activity: models.InboxObject | None,
-    deleted_ap_object: models.InboxObject,
-    forwarded_by_actor: models.Actor | None,
+    delete_activity: activitypub.models.InboxObject | None,
+    deleted_ap_object: activitypub.models.InboxObject,
+    forwarded_by_actor: activitypub.models.Actor | None,
 ) -> None:
     is_delete_needs_to_be_forwarded = False
 
@@ -1378,9 +1379,9 @@ async def _revert_side_effect_for_deleted_object(
                 )
 
                 await db_session.execute(
-                    update(models.OutboxObject)
+                    update(activitypub.models.OutboxObject)
                     .where(
-                        models.OutboxObject.id == replied_object.id,
+                        activitypub.models.OutboxObject.id == replied_object.id,
                     )
                     .values(replies_count=new_replies_count - 1)
                 )
@@ -1390,9 +1391,9 @@ async def _revert_side_effect_for_deleted_object(
                 )
 
                 await db_session.execute(
-                    update(models.InboxObject)
+                    update(activitypub.models.InboxObject)
                     .where(
-                        models.InboxObject.id == replied_object.id,
+                        activitypub.models.InboxObject.id == replied_object.id,
                     )
                     .values(replies_count=new_replies_count - 1)
                 )
@@ -1406,9 +1407,9 @@ async def _revert_side_effect_for_deleted_object(
             if related_object.is_from_outbox:
                 likes_count = await _get_outbox_likes_count(db_session, related_object)
                 await db_session.execute(
-                    update(models.OutboxObject)
+                    update(activitypub.models.OutboxObject)
                     .where(
-                        models.OutboxObject.id == related_object.id,
+                        activitypub.models.OutboxObject.id == related_object.id,
                     )
                     .values(likes_count=likes_count - 1)
                 )
@@ -1426,18 +1427,18 @@ async def _revert_side_effect_for_deleted_object(
                     db_session, related_object
                 )
                 await db_session.execute(
-                    update(models.OutboxObject)
+                    update(activitypub.models.OutboxObject)
                     .where(
-                        models.OutboxObject.id == related_object.id,
+                        activitypub.models.OutboxObject.id == related_object.id,
                     )
                     .values(announces_count=announces_count - 1)
                 )
 
     # Delete any Like/Announce
     await db_session.execute(
-        update(models.OutboxObject)
+        update(activitypub.models.OutboxObject)
         .where(
-            models.OutboxObject.activity_object_ap_id == deleted_ap_object.ap_id,
+            activitypub.models.OutboxObject.activity_object_ap_id == deleted_ap_object.ap_id,
         )
         .values(is_deleted=True)
     )
@@ -1471,8 +1472,8 @@ async def _revert_side_effect_for_deleted_object(
 
 async def _handle_follow_follow_activity(
     db_session: AsyncSession,
-    from_actor: models.Actor,
-    follow_activity: models.InboxObject,
+    from_actor: activitypub.models.Actor,
+    follow_activity: activitypub.models.InboxObject,
 ) -> None:
     if follow_activity.activity_object_ap_id != LOCAL_ACTOR.ap_id:
         logger.warning(
@@ -1496,7 +1497,7 @@ async def _handle_follow_follow_activity(
 async def _get_incoming_follow_from_notification_id(
     db_session: AsyncSession,
     notification_id: int,
-) -> tuple[models.Notification, models.InboxObject]:
+) -> tuple[models.Notification, activitypub.models.InboxObject]:
     notif = await get_notification_by_id(db_session, notification_id)
     if notif is None:
         raise ValueError(f"Notification {notification_id=} not found")
@@ -1528,11 +1529,11 @@ async def send_accept(
 
 async def _send_accept(
     db_session: AsyncSession,
-    from_actor: models.Actor,
-    inbox_object: models.InboxObject,
+    from_actor: activitypub.models.Actor,
+    inbox_object: activitypub.models.InboxObject,
 ) -> None:
 
-    follower = models.Follower(
+    follower = activitypub.models.Follower(
         actor_id=from_actor.id,
         inbox_object_id=inbox_object.id,
         ap_actor_id=from_actor.ap_id,
@@ -1584,8 +1585,8 @@ async def send_reject(
 
 async def _send_reject(
     db_session: AsyncSession,
-    from_actor: models.Actor,
-    inbox_object: models.InboxObject,
+    from_actor: activitypub.models.Actor,
+    inbox_object: activitypub.models.InboxObject,
 ) -> None:
     # Reply with an Accept
     reply_id = allocate_outbox_id()
@@ -1613,9 +1614,9 @@ async def _send_reject(
 
 async def _handle_undo_activity(
     db_session: AsyncSession,
-    from_actor: models.Actor,
-    undo_activity: models.InboxObject,
-    ap_activity_to_undo: models.InboxObject,
+    from_actor: activitypub.models.Actor,
+    undo_activity: activitypub.models.InboxObject,
+    ap_activity_to_undo: activitypub.models.InboxObject,
 ) -> None:
     if from_actor.ap_id != ap_activity_to_undo.actor.ap_id:
         logger.warning(
@@ -1630,8 +1631,8 @@ async def _handle_undo_activity(
     if ap_activity_to_undo.ap_type == "Follow":
         logger.info(f"Undo follow from {from_actor.ap_id}")
         await db_session.execute(
-            delete(models.Follower).where(
-                models.Follower.inbox_object_id == ap_activity_to_undo.id
+            delete(activitypub.models.Follower).where(
+                activitypub.models.Follower.inbox_object_id == ap_activity_to_undo.id
             )
         )
         if is_notification_enabled(models.NotificationType.UNFOLLOW):
@@ -1685,7 +1686,7 @@ async def _handle_undo_activity(
             if announced_obj_from_outbox:
                 logger.info("Found in the oubox")
                 announced_obj_from_outbox.announces_count = (
-                    models.OutboxObject.announces_count - 1
+                        activitypub.models.OutboxObject.announces_count - 1
                 )
                 if is_notification_enabled(models.NotificationType.UNDO_ANNOUNCE):
                     notif = models.Notification(
@@ -1711,8 +1712,8 @@ async def _handle_undo_activity(
 
 async def _handle_move_activity(
     db_session: AsyncSession,
-    from_actor: models.Actor,
-    move_activity: models.InboxObject,
+    from_actor: activitypub.models.Actor,
+    move_activity: activitypub.models.InboxObject,
 ) -> None:
     logger.info("Processing Move activity")
 
@@ -1745,9 +1746,9 @@ async def _handle_move_activity(
     # Unfollow the old account
     following = (
         await db_session.execute(
-            select(models.Following)
-            .where(models.Following.ap_actor_id == old_actor_id)
-            .options(joinedload(models.Following.outbox_object))
+            select(activitypub.models.Following)
+            .where(activitypub.models.Following.ap_actor_id == old_actor_id)
+            .options(joinedload(activitypub.models.Following.outbox_object))
         )
     ).scalar_one_or_none()
     if not following:
@@ -1759,7 +1760,7 @@ async def _handle_move_activity(
     # Follow the new one
     if not (
         await db_session.execute(
-            select(models.Following).where(models.Following.ap_actor_id == new_actor_id)
+            select(activitypub.models.Following).where(activitypub.models.Following.ap_actor_id == new_actor_id)
         )
     ).scalar():
         await _send_follow(db_session, new_actor_id)
@@ -1777,8 +1778,8 @@ async def _handle_move_activity(
 
 async def _handle_update_activity(
     db_session: AsyncSession,
-    from_actor: models.Actor,
-    update_activity: models.InboxObject,
+    from_actor: activitypub.models.Actor,
+    update_activity: activitypub.models.InboxObject,
 ) -> None:
     logger.info("Processing Update activity")
     wrapped_object = await ap.get_object(update_activity.ap_object)
@@ -1829,10 +1830,10 @@ async def _handle_update_activity(
 
 async def _handle_create_activity(
     db_session: AsyncSession,
-    from_actor: models.Actor,
-    create_activity: models.InboxObject,
-    forwarded_by_actor: models.Actor | None = None,
-    relates_to_inbox_object: models.InboxObject | None = None,
+    from_actor: activitypub.models.Actor,
+    create_activity: activitypub.models.InboxObject,
+    forwarded_by_actor: activitypub.models.Actor | None = None,
+    relates_to_inbox_object: activitypub.models.InboxObject | None = None,
 ) -> None:
     logger.info("Processing Create activity")
 
@@ -1885,8 +1886,8 @@ async def _handle_create_activity(
 
 async def _handle_read_activity(
     db_session: AsyncSession,
-    from_actor: models.Actor,
-    read_activity: models.InboxObject,
+    from_actor: activitypub.models.Actor,
+    read_activity: activitypub.models.InboxObject,
 ) -> None:
     logger.info("Processing Read activity")
 
@@ -1914,10 +1915,10 @@ async def _handle_read_activity(
 
 async def _process_note_object(
     db_session: AsyncSession,
-    parent_activity: models.InboxObject,
-    from_actor: models.Actor,
+    parent_activity: activitypub.models.InboxObject,
+    from_actor: activitypub.models.Actor,
     ro: RemoteObject,
-    forwarded_by_actor: models.Actor | None = None,
+    forwarded_by_actor: activitypub.models.Actor | None = None,
 ) -> None:
     if parent_activity.ap_type not in ["Create", "Read"]:
         raise ValueError(f"Unexpected parent activity {parent_activity.ap_id}")
@@ -1951,7 +1952,7 @@ async def _process_note_object(
         remote_object=ro,
     )
 
-    inbox_object = models.InboxObject(
+    inbox_object = activitypub.models.InboxObject(
         server=urlparse(ro.ap_id).hostname,
         actor_id=from_actor.id,
         ap_actor_id=from_actor.ap_id,
@@ -1998,9 +1999,9 @@ async def _process_note_object(
                     )
 
                     await db_session.execute(
-                        update(models.OutboxObject)
+                        update(activitypub.models.OutboxObject)
                         .where(
-                            models.OutboxObject.id == replied_object.id,
+                            activitypub.models.OutboxObject.id == replied_object.id,
                         )
                         .values(replies_count=new_replies_count)
                     )
@@ -2010,9 +2011,9 @@ async def _process_note_object(
                 )
 
                 await db_session.execute(
-                    update(models.InboxObject)
+                    update(activitypub.models.InboxObject)
                     .where(
-                        models.InboxObject.id == replied_object.id,
+                        activitypub.models.InboxObject.id == replied_object.id,
                     )
                     .values(replies_count=new_replies_count)
                 )
@@ -2053,8 +2054,8 @@ async def _process_note_object(
 
 async def _handle_vote_answer(
     db_session: AsyncSession,
-    answer: models.InboxObject,
-    question: models.OutboxObject,
+    answer: activitypub.models.InboxObject,
+    question: activitypub.models.OutboxObject,
 ) -> None:
     logger.info(f"Processing poll answer for {question.ap_id}: {answer.ap_id}")
 
@@ -2071,7 +2072,7 @@ async def _handle_vote_answer(
         return
 
     answer.is_transient = True
-    poll_answer = models.PollAnswer(
+    poll_answer = activitypub.models.PollAnswer(
         outbox_object_id=question.id,
         poll_type="oneOf" if question.is_one_of_poll else "anyOf",
         inbox_object_id=answer.id,
@@ -2082,18 +2083,18 @@ async def _handle_vote_answer(
     await db_session.flush()
 
     voters_count = await db_session.scalar(
-        select(func.count(func.distinct(models.PollAnswer.actor_id))).where(
-            models.PollAnswer.outbox_object_id == question.id
+        select(func.count(func.distinct(activitypub.models.PollAnswer.actor_id))).where(
+            activitypub.models.PollAnswer.outbox_object_id == question.id
         )
     )
 
     all_answers = await db_session.execute(
         select(
-            func.count(models.PollAnswer.name).label("answer_count"),
-            models.PollAnswer.name,
+            func.count(activitypub.models.PollAnswer.name).label("answer_count"),
+            activitypub.models.PollAnswer.name,
         )
-        .where(models.PollAnswer.outbox_object_id == question.id)
-        .group_by(models.PollAnswer.name)
+        .where(activitypub.models.PollAnswer.outbox_object_id == question.id)
+        .group_by(activitypub.models.PollAnswer.name)
     )
     all_answers_count = {a["name"]: a["answer_count"] for a in all_answers}
 
@@ -2130,15 +2131,15 @@ async def _handle_vote_answer(
 
 async def _handle_announce_activity(
     db_session: AsyncSession,
-    actor: models.Actor,
-    announce_activity: models.InboxObject,
-    relates_to_outbox_object: models.OutboxObject | None,
-    relates_to_inbox_object: models.InboxObject | None,
+    actor: activitypub.models.Actor,
+    announce_activity: activitypub.models.InboxObject,
+    relates_to_outbox_object: activitypub.models.OutboxObject | None,
+    relates_to_inbox_object: activitypub.models.InboxObject | None,
 ):
     if relates_to_outbox_object:
         # This is an announce for a local object
         relates_to_outbox_object.announces_count = (
-            models.OutboxObject.announces_count + 1
+                activitypub.models.OutboxObject.announces_count + 1
         )
 
         if is_notification_enabled(models.NotificationType.ANNOUNCE):
@@ -2173,12 +2174,12 @@ async def _handle_announce_activity(
             ) or (
                 dup_count := (
                     await db_session.scalar(
-                        select(func.count(models.InboxObject.id)).where(
-                            models.InboxObject.ap_type == "Announce",
-                            models.InboxObject.ap_published_at > now() - skip_delta,
-                            models.InboxObject.relates_to_inbox_object_id
+                        select(func.count(activitypub.models.InboxObject.id)).where(
+                            activitypub.models.InboxObject.ap_type == "Announce",
+                            activitypub.models.InboxObject.ap_published_at > now() - skip_delta,
+                            activitypub.models.InboxObject.relates_to_inbox_object_id
                             == relates_to_inbox_object.id,
-                            models.InboxObject.is_hidden_from_stream.is_(False),
+                            activitypub.models.InboxObject.is_hidden_from_stream.is_(False),
                         )
                     )
                 )
@@ -2206,7 +2207,7 @@ async def _handle_announce_activity(
             )
             if not announced_actor.is_blocked:
                 announced_object = RemoteObject(announced_raw_object, announced_actor)
-                announced_inbox_object = models.InboxObject(
+                announced_inbox_object = activitypub.models.InboxObject(
                     server=urlparse(announced_object.ap_id).hostname,
                     actor_id=announced_actor.id,
                     ap_actor_id=announced_actor.ap_id,
@@ -2232,10 +2233,10 @@ async def _handle_announce_activity(
 
 async def _handle_like_activity(
     db_session: AsyncSession,
-    actor: models.Actor,
-    like_activity: models.InboxObject,
-    relates_to_outbox_object: models.OutboxObject | None,
-    relates_to_inbox_object: models.InboxObject | None,
+    actor: activitypub.models.Actor,
+    like_activity: activitypub.models.InboxObject,
+    relates_to_outbox_object: activitypub.models.OutboxObject | None,
+    relates_to_inbox_object: activitypub.models.InboxObject | None,
 ):
     if not relates_to_outbox_object:
         logger.info(
@@ -2261,8 +2262,8 @@ async def _handle_like_activity(
 
 async def _handle_block_activity(
     db_session: AsyncSession,
-    actor: models.Actor,
-    block_activity: models.InboxObject,
+    actor: activitypub.models.Actor,
+    block_activity: activitypub.models.InboxObject,
 ):
     if block_activity.activity_object_ap_id != LOCAL_ACTOR.ap_id:
         logger.warning(
@@ -2285,7 +2286,7 @@ async def _handle_block_activity(
 async def _process_transient_object(
     db_session: AsyncSession,
     raw_object: ap.RawObject,
-    from_actor: models.Actor,
+    from_actor: activitypub.models.Actor,
 ) -> None:
     # TODO: track featured/pinned objects for actors
     ap_type = raw_object["type"]
@@ -2383,8 +2384,8 @@ async def save_to_inbox(
 
     if (
         await db_session.scalar(
-            select(func.count(models.InboxObject.id)).where(
-                models.InboxObject.ap_id == raw_object_id
+            select(func.count(activitypub.models.InboxObject.id)).where(
+                activitypub.models.InboxObject.ap_id == raw_object_id
             )
         )
         > 0
@@ -2400,8 +2401,8 @@ async def save_to_inbox(
 
     activity_ro = RemoteObject(raw_object, actor=actor)
 
-    relates_to_inbox_object: models.InboxObject | None = None
-    relates_to_outbox_object: models.OutboxObject | None = None
+    relates_to_inbox_object: activitypub.models.InboxObject | None = None
+    relates_to_outbox_object: activitypub.models.OutboxObject | None = None
     if activity_ro.activity_object_ap_id:
         if activity_ro.activity_object_ap_id.startswith(BASE_URL):
             relates_to_outbox_object = await get_outbox_object_by_ap_id(
@@ -2414,7 +2415,7 @@ async def save_to_inbox(
                 activity_ro.activity_object_ap_id,
             )
 
-    inbox_object = models.InboxObject(
+    inbox_object = activitypub.models.InboxObject(
         server=urlparse(activity_ro.ap_id).hostname,
         actor_id=actor.id,
         ap_actor_id=actor.ap_id,
@@ -2491,7 +2492,7 @@ async def save_to_inbox(
                     db_session.add(notif)
 
                 if activity_ro.ap_type == "Accept":
-                    following = models.Following(
+                    following = activitypub.models.Following(
                         actor_id=actor.id,
                         outbox_object_id=relates_to_outbox_object.id,
                         ap_actor_id=actor.ap_id,
@@ -2506,8 +2507,8 @@ async def save_to_inbox(
                 elif activity_ro.ap_type == "Reject":
                     maybe_following = (
                         await db_session.scalars(
-                            select(models.Following).where(
-                                models.Following.ap_actor_id == actor.ap_id,
+                            select(activitypub.models.Following).where(
+                                activitypub.models.Following.ap_actor_id == actor.ap_id,
                             )
                         )
                     ).one_or_none()
@@ -2563,7 +2564,7 @@ async def save_to_inbox(
 
 async def _prefetch_actor_outbox(
     db_session: AsyncSession,
-    actor: models.Actor,
+    actor: activitypub.models.Actor,
 ) -> None:
     """Try to fetch some notes to fill the stream"""
     saved = 0
@@ -2593,7 +2594,7 @@ async def _prefetch_actor_outbox(
 async def save_object_to_inbox(
     db_session: AsyncSession,
     raw_object: ap.RawObject,
-) -> models.InboxObject:
+) -> activitypub.models.InboxObject:
     """Used to save unknown object before intetacting with them, i.e. to like
     an object that was looked up, or prefill the inbox when an actor accepted
     a follow request."""
@@ -2605,7 +2606,7 @@ async def save_object_to_inbox(
     if "published" in ro.ap_object:
         ap_published_at = parse_isoformat(ro.ap_object["published"])
 
-    inbox_object = models.InboxObject(
+    inbox_object = activitypub.models.InboxObject(
         server=urlparse(ro.ap_id).hostname,
         actor_id=obj_actor.id,
         ap_actor_id=obj_actor.ap_id,
@@ -2631,9 +2632,9 @@ async def save_object_to_inbox(
 
 async def public_outbox_objects_count(db_session: AsyncSession) -> int:
     return await db_session.scalar(
-        select(func.count(models.OutboxObject.id)).where(
-            models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
-            models.OutboxObject.is_deleted.is_(False),
+        select(func.count(activitypub.models.OutboxObject.id)).where(
+            activitypub.models.OutboxObject.visibility == ap.VisibilityEnum.PUBLIC,
+            activitypub.models.OutboxObject.is_deleted.is_(False),
         )
     )
 
@@ -2644,8 +2645,8 @@ async def fetch_actor_collection(db_session: AsyncSession, url: str) -> list[Act
             followers = (
                 (
                     await db_session.scalars(
-                        select(models.Follower).options(
-                            joinedload(models.Follower.actor)
+                        select(activitypub.models.Follower).options(
+                            joinedload(activitypub.models.Follower.actor)
                         )
                     )
                 )
@@ -2697,23 +2698,23 @@ async def get_replies_tree(
         tree_nodes.extend(
             (
                 await db_session.scalars(
-                    select(models.InboxObject)
+                    select(activitypub.models.InboxObject)
                     .where(
                         (
-                            models.InboxObject.conversation
-                            == requested_object.conversation
+                                activitypub.models.InboxObject.conversation
+                                == requested_object.conversation
                         )
                         | (
-                            models.InboxObject.ap_context
-                            == requested_object.conversation
+                                activitypub.models.InboxObject.ap_context
+                                == requested_object.conversation
                         ),
-                        models.InboxObject.ap_type.in_(
+                        activitypub.models.InboxObject.ap_type.in_(
                             ["Note", "Page", "Article", "Question"]
                         ),
-                        models.InboxObject.is_deleted.is_(False),
-                        models.InboxObject.visibility.in_(allowed_visibility),
+                        activitypub.models.InboxObject.is_deleted.is_(False),
+                        activitypub.models.InboxObject.visibility.in_(allowed_visibility),
                     )
-                    .options(joinedload(models.InboxObject.actor))
+                    .options(joinedload(activitypub.models.InboxObject.actor))
                 )
             )
             .unique()
@@ -2723,20 +2724,20 @@ async def get_replies_tree(
         tree_nodes.extend(
             (
                 await db_session.scalars(
-                    select(models.OutboxObject)
+                    select(activitypub.models.OutboxObject)
                     .where(
-                        models.OutboxObject.conversation
+                        activitypub.models.OutboxObject.conversation
                         == requested_object.conversation,
-                        models.OutboxObject.is_deleted.is_(False),
-                        models.OutboxObject.ap_type.in_(
+                        activitypub.models.OutboxObject.is_deleted.is_(False),
+                        activitypub.models.OutboxObject.ap_type.in_(
                             ["Note", "Page", "Article", "Question"]
                         ),
-                        models.OutboxObject.visibility.in_(allowed_visibility),
+                        activitypub.models.OutboxObject.visibility.in_(allowed_visibility),
                     )
                     .options(
                         joinedload(
-                            models.OutboxObject.outbox_object_attachments
-                        ).options(joinedload(models.OutboxObjectAttachment.upload))
+                            activitypub.models.OutboxObject.outbox_object_attachments
+                        ).options(joinedload(activitypub.models.OutboxObjectAttachment.upload))
                     )
                 )
             )

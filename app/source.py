@@ -11,6 +11,7 @@ from pygments.lexers import get_lexer_by_name as get_lexer  # type: ignore
 from pygments.util import ClassNotFound  # type: ignore
 from sqlalchemy import select
 
+import activitypub.models
 from app import webfinger
 from app.config import BASE_URL
 from app.config import CODE_HIGHLIGHTING_THEME
@@ -18,7 +19,7 @@ from app.database import AsyncSession
 from app.utils import emoji
 
 if typing.TYPE_CHECKING:
-    from app.actor import Actor
+    from activitypub.actor import Actor
 
 _FORMATTER = HtmlFormatter(style=CODE_HIGHLIGHTING_THEME)
 _HASHTAG_REGEX = re.compile(r"(#[\d\w]+)")
@@ -121,7 +122,7 @@ async def _prefetch_mentioned_actors(
     content: str,
 ) -> dict[str, "Actor"]:
     from app import models
-    from app.actor import fetch_actor
+    from activitypub.actor import fetch_actor
 
     actors = {}
 
@@ -137,9 +138,9 @@ async def _prefetch_mentioned_actors(
             _, username, domain = mention.split("@")
             actor = (
                 await db_session.execute(
-                    select(models.Actor).where(
-                        models.Actor.handle == mention,
-                        models.Actor.is_deleted.is_(False),
+                    select(activitypub.models.Actor).where(
+                        activitypub.models.Actor.handle == mention,
+                        activitypub.models.Actor.is_deleted.is_(False),
                     )
                 )
             ).scalar_one_or_none()
