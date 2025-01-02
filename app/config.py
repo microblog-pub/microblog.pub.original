@@ -198,6 +198,7 @@ CUSTOM_FOOTER = (
 BASE_URL = ID
 DEBUG = CONFIG.debug
 DB_PATH = CONFIG.sqlalchemy_database or ROOT_DIR / "data" / "microblogpub.db"
+print(f"=====> Using database at {DB_PATH}")
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
 KEY_PATH = (
     (ROOT_DIR / CONFIG.key_path) if CONFIG.key_path else ROOT_DIR / "data" / "key.pem"

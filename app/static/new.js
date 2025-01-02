@@ -1,5 +1,9 @@
 // The new post textarea
 var ta = document.getElementsByTagName("textarea")[0];
+let simplemde = new SimpleMDE({
+    element: ta,
+
+});
 // Helper for inserting text (emojis) in the textarea
 function insertAtCursor (textToInsert) {
     ta.focus();

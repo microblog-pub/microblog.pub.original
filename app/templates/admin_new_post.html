@@ -1,0 +1,103 @@
+{%- import "utils.html" as utils with context -%}
+{%- import "components/hidden_inputs.html" as hidden_inputs -%}
+{% extends "layout.html" %}
+
+{% block head %}
+<link rel="manifest" href="/static/pwa.webmanifest" />
+<link rel="stylesheet" href="/static/css/font-awesome.min.css" />
+<link rel="stylesheet" href="/static/css/simplemde.min.css">
+<script src="/static/simplemde.min.js"></script>
+<title>{{ local_actor.display_name }} - New Post</title>
+{% endblock %}
+
+{% block content %}
+
+{% if in_reply_to_object %}
+<div class="actor-action">In reply to:</div>
+{{ utils.display_object(in_reply_to_object) }}
+{% endif %}
+
+<div class="box">
+<nav class="flexbox" hx-boost="true" hx-indicator="body">
+<ul>
+{% for ap_type in ["Note", "Article", "Question"] %}
+<li>
+    <a href="?type={{ ap_type }}"
+       {% if request.query_params.get("type", "Note") == ap_type %} class="active" {% endif %}>
+       {{ ap_type }}
+    </a>
+</li>
+{% endfor %}
+</ul>
+</nav>
+
+
+<form class="form admin-new" action="{{ request.url_for("admin_actions_new") }}" enctype="multipart/form-data" method="POST">
+    {{ hidden_inputs.embed_csrf_token(csrf_token) }}
+    {{ hidden_inputs.embed_redirect_url(request) }}
+    <p>
+    <select name="visibility">
+        {% for (k, v) in visibility_choices %}
+        <option value="{{ k }}" {% if visibility == k or in_reply_to_object and in_reply_to_object.visibility.name == k %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+    </select>
+    </p>
+
+    {% if request.query_params.type == "Article" %}
+    <p>
+        <input type="text" class="width-95" name="name" placeholder="Title">
+    </p>
+    {% endif %}
+
+{#    {% for emoji in emojis %}#}
+{#    <span class="ji">{{ emoji | emojify(True) | safe }}</span>#}
+{#    {% endfor %}#}
+{#    {% for emoji in custom_emojis %}#}
+{#    <span class="ji"><img src="{{ emoji.icon.url }}" alt="{{ emoji.name }}" title="{{ emoji.name }}" class="custom-emoji"></span>#}
+{#    {% endfor %}#}
+
+    <textarea id="post-content" name="content" rows="10" cols="50" autofocus="autofocus" designMode="on" placeholder="Hey!">
+        {{ content }}
+    </textarea>
+
+    {% if request.query_params.type == "Question" %}
+        <p>
+            <select name="poll_type">
+                <option value="oneOf">single choice</option>
+                <option value="anyOf">multiple choices</option>
+            </select>
+        </p>
+        <p>
+            <select name="poll_duration">
+                <option value="5">ends in 5 minutes</option>
+                <option value="30">ends in 30 minutes</option>
+                <option value="60">ends in 1 hour</option>
+                <option value="360">ends in 6 hours</option>
+                <option value="1440">ends in 1 day</option>
+            </select>
+        </p>
+        {% for i in ["1", "2", "3", "4"] %}
+            <p>
+            <input type="text" name="poll_answer_{{ i }}" class="width-95" placeholder="Option {{ i }}, leave empty to disable">
+            </p>
+        {% endfor %}
+    {% endif %}
+
+    <p>
+    <input type="text" name="content_warning" placeholder="content warning (will mark the post as sensitive)"{% if content_warning %} value="{{ content_warning }}"{% endif %} class="width-95">
+    </p>
+    <p>
+        <input type="checkbox" name="is_sensitive" id="is_sensitive"> <label for="is_sensitive">Mark attachment(s) as sensitive</label>
+    </p>
+    <input type="hidden" name="in_reply_to" value="{{ request.query_params.in_reply_to }}">
+    <p>
+        <input id="files" name="files" type="file" class="width-95" multiple>
+    </p>
+    <div id="alts"></div>
+    <p>
+        <input type="submit" value="Publish">
+    </p>
+</form>
+</div>
+<script src="/static/new.js?v={{ JS_HASH }}"></script>
+{% endblock %}

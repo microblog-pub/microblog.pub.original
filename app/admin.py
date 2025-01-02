@@ -227,6 +227,66 @@ async def admin_new(
     )
 
 
+@router.get("/new_post", response_model=None)
+async def admin_new_post(
+    request: Request,
+    query: str | None = None,
+    in_reply_to: str | None = None,
+    with_content: str | None = None,
+    with_visibility: str | None = None,
+    db_session: AsyncSession = Depends(get_db_session),
+) -> templates.TemplateResponse:
+    content = ""
+    content_warning = None
+    in_reply_to_object = None
+    if in_reply_to:
+        in_reply_to_object = await boxes.get_anybox_object_by_ap_id(
+            db_session, in_reply_to
+        )
+        if not in_reply_to_object:
+            logger.info(f"Saving unknown object {in_reply_to}")
+            raw_object = await ap.fetch(in_reply_to)
+            await boxes.save_object_to_inbox(db_session, raw_object)
+            await db_session.commit()
+            in_reply_to_object = await boxes.get_anybox_object_by_ap_id(
+                db_session, in_reply_to
+            )
+
+        # Add mentions to the initial note content
+        if not in_reply_to_object:
+            raise ValueError(f"Unknown object {in_reply_to=}")
+        if in_reply_to_object.actor.ap_id != LOCAL_ACTOR.ap_id:
+            content += f"{in_reply_to_object.actor.handle} "
+        for tag in in_reply_to_object.tags:
+            if tag.get("type") == "Mention" and tag["name"] != LOCAL_ACTOR.handle:
+                try:
+                    mentioned_actor = await fetch_actor(db_session, tag["href"])
+                    content += f"{mentioned_actor.handle} "
+                except Exception:
+                    logger.exception(f"Failed to lookup {mentioned_actor}")
+
+        # Copy the content warning if any
+        if in_reply_to_object.summary:
+            content_warning = in_reply_to_object.summary
+    elif with_content:
+        content += f"{with_content} "
+
+    return await templates.render_template(
+        db_session,
+        request,
+        "admin_new_post.html",
+        {
+            "in_reply_to_object": in_reply_to_object,
+            "content": content,
+            "content_warning": content_warning,
+            "visibility_choices": [
+                (v.name, ap.VisibilityEnum.get_display_name(v))
+                for v in ap.VisibilityEnum
+            ],
+            "visibility": with_visibility
+        },
+    )
+
 @router.get("/bookmarks", response_model=None)
 async def admin_bookmarks(
     request: Request,

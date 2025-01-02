@@ -12,7 +12,8 @@ Instances in the wild:
  - [blog.joaocosta.eu](https://blog.joaocosta.eu/)
  - [bw3.dev](https://bw3.dev/)
  - [blog.nigini.me](https://blog.nigini.me)
- - [chrichri.ween.de](chrichri.ween.de)
+ - [chrichri.ween.de](https://chrichri.ween.de)
+ - [bw3.dev](https://bw3.dev/)
 
 
 ## Features
@@ -31,8 +32,9 @@ Instances in the wild:
     - Every media is proxied through the server
     - Strict access control for your outbox enforced via HTTP signature
  - **Little** Javascript
-    - The UI is pure HTML/CSS
+    - The UI is mostly pure HTML/CSS
     - Except for tiny bits of hand-written JS
+      - or some localized and optional JS libraries to improve usability
  - IndieWeb citizen
     - [IndieAuth](https://www.w3.org/TR/indieauth/) support (OAuth2 extension)
     - [Microformats](http://microformats.org/wiki/Main_Page) everywhere
@@ -44,7 +46,7 @@ Instances in the wild:
 
 ## Getting started
 
-Check out the [online documentation](https://microblog-pub.github.io/microblog.pub/)
+Check out the [online documentation](https://tinyBlogPub.github.io/microblog.pub/)
 
 ## Credits
 
@@ -58,13 +60,13 @@ Check out the [online documentation](https://microblog-pub.github.io/microblog.p
 
 This is where the project is being reanimated:
 
- - [ORG](https://github.com/microblog-pub/)
+ - [ORG](https://github.com/tinyBlogPub/)
  - [CONDUCT](code_of_conduct.md)
- - [CODE](https://github.com/microblog-pub/microblog.pub)
+ - [CODE](https://github.com/tinyBlogPub/microblog.pub)
     - Contributions are more than welcomed via Pull Requests, but first, make sure to discuss your ideas and get assigned to an issue.
- - [DISCUSSION](https://github.com/microblog-pub/microblog.pub/discussions)
+ - [DISCUSSION](https://github.com/tinyBlogPub/microblog.pub/discussions)
     - Where we meet to talk about the project, bounce ideas around, and shape the next steps of the project
- - [ISSUES](https://github.com/microblog-pub/microblog.pub/issues)
+ - [ISSUES](https://github.com/tinyBlogPub/microblog.pub/issues)
     - Used for technical description of bugs, issues, and improvements (please use discussion for ideation and open-ended conversations.)
 
 ## License
