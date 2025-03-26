@@ -201,6 +201,8 @@ app.mount(
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(admin.router, prefix="/admin")
 app.include_router(admin.unauthenticated_router, prefix="/admin")
+
+# TODO: [REFACTOR] Most of this file's code is implementing the ActivityPub API. Move to its own router!!!
 app.include_router(indieauth.router)
 app.include_router(micropub.router)
 app.include_router(webmentions.router)

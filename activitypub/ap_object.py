@@ -12,6 +12,8 @@ from activitypub import activitypub as ap
 from activitypub.actor import LOCAL_ACTOR
 from activitypub.actor import Actor
 from activitypub.actor import RemoteActor
+
+# TODO: What can we refactor in the library from these imports and config?
 from app.config import ID
 from app.media import proxied_media_url
 from app.utils.datetime import now

@@ -35,6 +35,7 @@ def _handle(raw_actor: ap.RawObject) -> str:
     handle = f'@{raw_actor["preferredUsername"]}@{domain.hostname}'  # type: ignore
 
     # TODO: cleanup this
+    # TODO: is this fully compatible with the specification?
     # Next, check for custom webfinger domains
     resp: httpx.Response | None = None
     for url in {

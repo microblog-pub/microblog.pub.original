@@ -11,7 +11,6 @@ import activitypub.models
 from activitypub import activitypub as ap
 from app import httpsig
 from app import ldsig
-from app import models
 from activitypub.boxes import save_to_inbox
 from app.database import AsyncSession
 from app.utils.datetime import now

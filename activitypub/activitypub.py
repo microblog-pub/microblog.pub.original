@@ -5,8 +5,10 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 import httpx
+from fastapi import APIRouter
 from loguru import logger
 
+# TODO: What can we refactor in the library from these imports and config?
 from app import config
 from app.config import ALSO_KNOWN_AS
 from app.config import AP_CONTENT_TYPE  # noqa: F401
@@ -16,6 +18,9 @@ from app.key import get_pubkey_as_pem
 from app.source import dedup_tags
 from app.source import hashtagify
 from app.utils.url import check_url
+
+# TODO: MOVE the AP API currently fully implemented in the app.main file!!!
+router = APIRouter()
 
 if TYPE_CHECKING:
     from activitypub.actor import Actor

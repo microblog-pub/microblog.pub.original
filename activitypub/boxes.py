@@ -19,8 +19,13 @@ from sqlalchemy.orm import joinedload
 
 import activitypub.models
 from activitypub import activitypub as ap
+
+# TODO: What can we refactor in the library from these imports and config?
 from app import config
 from app import ldsig
+# TODO: this app.models is mostly used for WebMention (which is not ActivityPub AFAK).
+# This may contradict be related info: https://www.w3.org/TR/social-web-protocols/#delivery-interop
+# It should be easy to create a non-hard-bonding to other protocols (i.e., event-based.)
 from app import models
 from activitypub.actor import LOCAL_ACTOR
 from activitypub.actor import Actor
