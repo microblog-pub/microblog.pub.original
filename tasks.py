@@ -84,14 +84,20 @@ def compile_scss(ctx, watch=False):
     else:
         shutil.copy2(favicon_file, "app/static/favicon.ico")
 
-    theme_file = Path("data/_theme.scss")
-    if not theme_file.exists():
-        theme_file.write_text("// override vars for theming here")
+    command = "compile"
+    config_file = "app/scss/boussole.json"
+    user_theme_file = Path("data/scss/_theme.scss")
+    user_css_file = Path("data/scss/main.scss")
+
+    if not user_theme_file.exists():
+        user_theme_file.write_text("// override vars for theming here")
+
+    if user_css_file.exists():
+        config_file = "data/scss/boussole.json"
 
     if watch:
-        run("boussole watch", echo=True)
-    else:
-        run("boussole compile", echo=True)
+        command = "watch"
+    run("boussole {} --config {}".format(command, config_file), echo=True)
 
 
 @task
